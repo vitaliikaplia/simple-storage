@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Simple Storage
- * Description: A simple storage plugin for WordPress.
- * Version: 0.1.0
+ * Description: Moves WordPress media files to the Hosting Ukraine storage and back, with verification and serving from the storage.
+ * Version: 0.2.0
  * Author: Vitalii Kaplia
  * Author URI: https://kaplia.pro/
  * Update URI: https://github.com/vitaliikaplia/simple-storage
@@ -32,13 +32,29 @@ if ( PHP_VERSION_ID < 80100 ) {
 	return;
 }
 
-define( 'SIMPLE_STORAGE_VERSION', '0.1.0' );
+define( 'SIMPLE_STORAGE_VERSION', '0.2.0' );
 define( 'SIMPLE_STORAGE_FILE', __FILE__ );
 define( 'SIMPLE_STORAGE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SIMPLE_STORAGE_URL', plugin_dir_url( __FILE__ ) );
 define( 'SIMPLE_STORAGE_BASENAME', plugin_basename( __FILE__ ) );
 
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-settings.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-paths.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-log.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-index.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-client.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-transfer.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-tester.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-proxy.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-delivery.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-jobs.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-media.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-timber.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-admin.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-cli.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-github-updater.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-plugin.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/functions.php';
 
 register_activation_hook( __FILE__, array( 'Simple_Storage_Plugin', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'Simple_Storage_Plugin', 'deactivate' ) );

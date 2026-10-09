@@ -3,15 +3,15 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Simple Storage 0.2.0\n"
-"Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage/issues\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
+"PO-Revision-Date: 2026-10-09 07:45+0300\n"
+"Last-Translator: Vitalii Kaplia\n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-09T06:45:18+00:00\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.12.0\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Domain: simple-storage\n"
 
 #. Plugin Name of the plugin
@@ -20,1019 +20,1012 @@ msgstr ""
 #: includes/class-simple-storage-admin.php:31
 #: includes/class-simple-storage-admin.php:169
 msgid "Simple Storage"
-msgstr ""
+msgstr "Simple Storage"
 
 #. Description of the plugin
 #: simple-storage.php
 msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with verification and serving from the storage."
-msgstr ""
+msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою та віддачею зі сховища."
 
 #. Author of the plugin
 #: simple-storage.php
 msgid "Vitalii Kaplia"
-msgstr ""
+msgstr "Віталій Капля"
 
 #. Author URI of the plugin
 #: simple-storage.php
 msgid "https://kaplia.pro/"
-msgstr ""
+msgstr "https://kaplia.pro/"
 
 #: includes/class-simple-storage-admin.php:50
 msgid "Open"
-msgstr ""
+msgstr "Відкрити"
 
 #. translators: %s: job name.
 #: includes/class-simple-storage-admin.php:147
 #, php-format
 msgid "Simple Storage: \"%s\" is not finished."
-msgstr ""
+msgstr "Simple Storage: «%s» не завершено."
 
 #: includes/class-simple-storage-admin.php:149
 #: includes/class-simple-storage-admin.php:429
 msgid "Continue"
-msgstr ""
+msgstr "Продовжити"
 
 #: includes/class-simple-storage-admin.php:155
 msgid "Sorry, you are not allowed to access this page."
-msgstr ""
+msgstr "Вибачте, у вас немає доступу до цієї сторінки."
 
 #: includes/class-simple-storage-admin.php:160
 msgid "Overview"
-msgstr ""
+msgstr "Огляд"
 
 #: includes/class-simple-storage-admin.php:161
 #: includes/class-simple-storage-tester.php:41
 #: includes/views/overview.php:92
 msgid "Settings"
-msgstr ""
+msgstr "Налаштування"
 
 #: includes/class-simple-storage-admin.php:162
 #: includes/views/log.php:17
 msgid "Log"
-msgstr ""
+msgstr "Журнал"
 
 #: includes/class-simple-storage-admin.php:177
 msgid "Simple Storage supports single-site WordPress installations only."
-msgstr ""
+msgstr "Simple Storage працює лише на звичайних (не мультисайтових) встановленнях WordPress."
 
 #. translators: %s: number of files.
 #: includes/class-simple-storage-admin.php:198
 #, php-format
 msgid "%s file"
 msgid_plural "%s files"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%s файл"
+msgstr[1] "%s файли"
+msgstr[2] "%s файлів"
 
 #: includes/class-simple-storage-admin.php:277
 msgid "Running"
-msgstr ""
+msgstr "Виконується"
 
 #: includes/class-simple-storage-admin.php:278
 msgid "Paused"
-msgstr ""
+msgstr "Призупинено"
 
 #: includes/class-simple-storage-admin.php:279
 msgid "Stopped by an error"
-msgstr ""
+msgstr "Зупинено через помилку"
 
 #: includes/class-simple-storage-admin.php:280
 msgid "Finished"
-msgstr ""
+msgstr "Завершено"
 
 #: includes/class-simple-storage-admin.php:281
 msgid "Cancelled"
-msgstr ""
+msgstr "Скасовано"
 
 #: includes/class-simple-storage-admin.php:300
 msgid "Sorry, you are not allowed to do that."
-msgstr ""
+msgstr "Вибачте, у вас немає прав на цю дію."
 
 #: includes/class-simple-storage-admin.php:303
 msgid "The page has expired. Reload it and try again."
-msgstr ""
+msgstr "Сторінка застаріла. Перезавантажте її та спробуйте ще раз."
 
 #: includes/class-simple-storage-admin.php:352
 msgid "Unknown action."
-msgstr ""
+msgstr "Невідома дія."
 
 #: includes/class-simple-storage-admin.php:373
 #: includes/class-simple-storage-client.php:44
 #: includes/class-simple-storage-delivery.php:211
 #: includes/class-simple-storage-jobs.php:71
 msgid "The storage connection is not configured."
-msgstr ""
+msgstr "Підключення до сховища не налаштовано."
 
 #: includes/class-simple-storage-admin.php:394
 msgid "The check applies to the transparent proxy while serving from the storage is on."
-msgstr ""
+msgstr "Перевірка стосується прозорого проксі й можлива, коли віддачу зі сховища ввімкнено."
 
 #: includes/class-simple-storage-admin.php:424
-msgid ""
-"All media files will be copied to the storage and verified, serving from the storage will be enabled, and then the local copies will be deleted from WordPress.\n"
-"\n"
-"Continue?"
-msgstr ""
+msgid "All media files will be copied to the storage and verified, serving from the storage will be enabled, and then the local copies will be deleted from WordPress.\n\nContinue?"
+msgstr "Усі медіафайли буде скопійовано в сховище й перевірено, буде ввімкнено віддачу зі сховища, а потім локальні копії буде видалено з WordPress.\n\nПродовжити?"
 
 #: includes/class-simple-storage-admin.php:425
-msgid ""
-"All files will be downloaded from the storage back into WordPress, verified, and then deleted from the storage.\n"
-"\n"
-"Continue?"
-msgstr ""
+msgid "All files will be downloaded from the storage back into WordPress, verified, and then deleted from the storage.\n\nContinue?"
+msgstr "Усі файли буде завантажено зі сховища назад у WordPress, перевірено, а потім видалено зі сховища.\n\nПродовжити?"
 
 #: includes/class-simple-storage-admin.php:426
 msgid "Cancel the job? Files that were already processed stay where they are now."
-msgstr ""
+msgstr "Скасувати задачу? Уже оброблені файли лишаться там, де вони зараз."
 
 #: includes/class-simple-storage-admin.php:427
-msgid ""
-"Some files exist only in the storage. If serving from the storage is turned off, they will not be shown on the site.\n"
-"\n"
-"Turn it off anyway?"
-msgstr ""
+msgid "Some files exist only in the storage. If serving from the storage is turned off, they will not be shown on the site.\n\nTurn it off anyway?"
+msgstr "Частина файлів є лише в сховищі. Якщо вимкнути віддачу зі сховища, сайт їх не показуватиме.\n\nВсе одно вимкнути?"
 
 #: includes/class-simple-storage-admin.php:428
 msgid "Pause"
-msgstr ""
+msgstr "Призупинити"
 
 #: includes/class-simple-storage-admin.php:430
 msgid "Cancel"
-msgstr ""
+msgstr "Скасувати"
 
 #: includes/class-simple-storage-admin.php:431
 msgid "Hide"
-msgstr ""
+msgstr "Сховати"
 
 #: includes/class-simple-storage-admin.php:432
 msgid "files"
-msgstr ""
+msgstr "файлів"
 
 #: includes/class-simple-storage-admin.php:433
 msgid "folders"
-msgstr ""
+msgstr "тек"
 
 #: includes/class-simple-storage-admin.php:434
 msgid "failed"
-msgstr ""
+msgstr "з помилкою"
 
 #: includes/class-simple-storage-admin.php:435
 msgid "Now:"
-msgstr ""
+msgstr "Зараз:"
 
 #: includes/class-simple-storage-admin.php:436
 msgid "Started:"
-msgstr ""
+msgstr "Почато:"
 
 #: includes/class-simple-storage-admin.php:437
 msgid "Finished:"
-msgstr ""
+msgstr "Завершено:"
 
 #: includes/class-simple-storage-admin.php:438
 msgid "The server did not respond. The job is paused; continue it when the connection is back."
-msgstr ""
+msgstr "Сервер не відповів. Задачу призупинено — продовжіть її, коли з’єднання відновиться."
 
 #: includes/class-simple-storage-admin.php:439
 msgid "Keep this tab open while the job runs. If you close it, the job pauses and can be continued later."
-msgstr ""
+msgstr "Не закривайте цю вкладку, поки задача виконується. Якщо закрити, задача призупиниться, і її можна буде продовжити пізніше."
 
 #: includes/class-simple-storage-admin.php:440
 msgid "On"
-msgstr ""
+msgstr "Увімкнено"
 
 #: includes/class-simple-storage-admin.php:441
 msgid "Off"
-msgstr ""
+msgstr "Вимкнено"
 
 #: includes/class-simple-storage-admin.php:442
 msgid "Enable serving from the storage"
-msgstr ""
+msgstr "Увімкнути віддачу зі сховища"
 
 #: includes/class-simple-storage-admin.php:443
 msgid "Disable serving from the storage"
-msgstr ""
+msgstr "Вимкнути віддачу зі сховища"
 
 #: includes/class-simple-storage-admin.php:444
 msgid "The rules are written to uploads/.htaccess."
-msgstr ""
+msgstr "Правила записано в uploads/.htaccess."
 
 #: includes/class-simple-storage-admin.php:445
 msgid "The rules are not in uploads/.htaccess; missing files are served only if the server passes such requests to WordPress."
-msgstr ""
+msgstr "Правил немає в uploads/.htaccess: відсутні файли віддаються, лише якщо сервер передає такі запити у WordPress."
 
 #: includes/class-simple-storage-admin.php:446
 msgid "The rules in uploads/.htaccess are outdated; save the settings to refresh them."
-msgstr ""
+msgstr "Правила в uploads/.htaccess застаріли — збережіть налаштування, щоб оновити їх."
 
 #: includes/class-simple-storage-admin.php:447
 msgid "transparent proxy, addresses unchanged"
-msgstr ""
+msgstr "прозорий проксі, адреси не змінюються"
 
 #: includes/class-simple-storage-admin.php:448
 msgid "Proxy: Apache serves the files itself, without PHP"
-msgstr ""
+msgstr "Проксі: Apache віддає файли сам, без PHP"
 
 #: includes/class-simple-storage-admin.php:449
 msgid "Proxy: the proxy.php script (Apache cannot proxy to the storage on this server)"
-msgstr ""
+msgstr "Проксі: скрипт proxy.php (Apache на цьому сервері не може проксувати до сховища)"
 
 #: includes/class-simple-storage-admin.php:450
 msgid "Check the proxy engine again"
-msgstr ""
+msgstr "Перевірити спосіб проксі ще раз"
 
 #: includes/class-simple-storage-admin.php:451
 msgid "Checking…"
-msgstr ""
+msgstr "Перевірка…"
 
 #: includes/class-simple-storage-admin.php:452
 msgid "checked"
-msgstr ""
+msgstr "перевірено"
 
 #: includes/class-simple-storage-admin.php:453
 msgid "Serving verified for:"
-msgstr ""
+msgstr "Віддачу перевірено для:"
 
 #: includes/class-simple-storage-admin.php:454
 msgid "Serving is not verified for the current settings yet, so new uploads stay in WordPress. Save the settings or move the files to run the check."
-msgstr ""
+msgstr "Віддачу ще не перевірено для поточних налаштувань, тому нові файли лишаються у WordPress. Збережіть налаштування або запустіть перенесення, щоб виконати перевірку."
 
 #: includes/class-simple-storage-admin.php:455
 msgid "directly from the storage"
-msgstr ""
+msgstr "напряму зі сховища"
 
 #: includes/class-simple-storage-admin.php:456
 msgid "New uploads are moved to the storage automatically."
-msgstr ""
+msgstr "Нові файли автоматично переносяться в сховище."
 
 #: includes/class-simple-storage-admin.php:457
 msgid "New uploads stay in WordPress."
-msgstr ""
+msgstr "Нові файли лишаються у WordPress."
 
 #: includes/class-simple-storage-admin.php:458
 msgid "Testing…"
-msgstr ""
+msgstr "Перевірка…"
 
 #: includes/class-simple-storage-admin.php:459
 msgid "Connection works."
-msgstr ""
+msgstr "З’єднання працює."
 
 #: includes/class-simple-storage-admin.php:460
 msgid "Connection test failed."
-msgstr ""
+msgstr "Перевірка з’єднання не вдалася."
 
 #: includes/class-simple-storage-admin.php:461
 msgid "never"
-msgstr ""
+msgstr "ще не було"
 
 #: includes/class-simple-storage-admin.php:462
 msgid "Not tested yet"
-msgstr ""
+msgstr "Ще не перевірялося"
 
 #: includes/class-simple-storage-admin.php:463
 #: includes/views/log.php:48
 msgid "No errors."
-msgstr ""
+msgstr "Помилок немає."
 
 #: includes/class-simple-storage-admin.php:464
 msgid "A job is running. Leaving the page pauses it."
-msgstr ""
+msgstr "Задача виконується. Якщо піти зі сторінки, вона призупиниться."
 
 #: includes/class-simple-storage-admin.php:465
 msgid "The job is being processed in another tab, request or WP-CLI; this page follows its progress."
-msgstr ""
+msgstr "Задачу зараз виконує інша вкладка, запит або WP-CLI — ця сторінка стежить за її прогресом."
 
 #: includes/class-simple-storage-client.php:41
 msgid "The PHP cURL extension is required."
-msgstr ""
+msgstr "Потрібне розширення PHP cURL."
 
 #: includes/class-simple-storage-client.php:137
 msgid "Authorization failed. Check the storage address, login and password."
-msgstr ""
+msgstr "Не вдалося авторизуватися. Перевірте адресу сховища, логін і пароль."
 
 #: includes/class-simple-storage-client.php:144
 msgid "The storage did not return an access token."
-msgstr ""
+msgstr "Сховище не повернуло токен доступу."
 
 #: includes/class-simple-storage-client.php:196
 #: includes/class-simple-storage-client.php:539
 msgid "The local file cannot be read."
-msgstr ""
+msgstr "Не вдається прочитати локальний файл."
 
 #: includes/class-simple-storage-client.php:291
 msgid "The directory does not exist in the storage."
-msgstr ""
+msgstr "Такого каталогу в сховищі немає."
 
 #: includes/class-simple-storage-client.php:322
 msgid "The storage returned a directory listing that cannot be read."
-msgstr ""
+msgstr "Сховище повернуло список каталогу, який не вдається прочитати."
 
 #: includes/class-simple-storage-client.php:379
 msgid "The local file cannot be written."
-msgstr ""
+msgstr "Не вдається записати локальний файл."
 
 #. translators: %s: cURL error message.
 #: includes/class-simple-storage-client.php:572
 #, php-format
 msgid "Storage request failed: %s"
-msgstr ""
+msgstr "Запит до сховища не вдався: %s"
 
 #: includes/class-simple-storage-client.php:639
 #: includes/class-simple-storage-delivery.php:339
 msgid "Unexpected storage response."
-msgstr ""
+msgstr "Неочікувана відповідь сховища."
 
 #. translators: 1: HTTP status code, 2: error description.
 #: includes/class-simple-storage-client.php:645
 #, php-format
 msgid "Storage answered %1$d: %2$s"
-msgstr ""
+msgstr "Сховище відповіло %1$d: %2$s"
 
 #: includes/class-simple-storage-delivery.php:216
 msgid "Serving from the storage was enabled."
-msgstr ""
+msgstr "Віддачу зі сховища ввімкнено."
 
 #: includes/class-simple-storage-delivery.php:237
 msgid "Serving from the storage was disabled."
-msgstr ""
+msgstr "Віддачу зі сховища вимкнено."
 
 #: includes/class-simple-storage-delivery.php:316
 msgid "Serving from the storage is off."
-msgstr ""
+msgstr "Віддачу зі сховища вимкнено."
 
 #. translators: 1: URL, 2: HTTP status code.
 #: includes/class-simple-storage-delivery.php:389
 #, php-format
 msgid "A file that exists only in the storage is not served at its site address %1$s (answer %2$d). Check that the uploads/.htaccess rules work or that the server passes missing files to WordPress, and that the proxy configuration next to the plugins folder could be written."
-msgstr ""
+msgstr "Файл, який є лише в сховищі, не віддається за адресою сайту %1$s (відповідь %2$d). Перевірте, що правила в uploads/.htaccess працюють або що сервер передає відсутні файли у WordPress, і що конфігурацію проксі поруч із текою plugins вдалося записати."
 
 #. translators: %s: file path.
 #: includes/class-simple-storage-delivery.php:475
 #, php-format
 msgid "Could not write %s; the transparent proxy cannot work without it."
-msgstr ""
+msgstr "Не вдалося записати %s — без нього прозорий проксі не працюватиме."
 
 #: includes/class-simple-storage-delivery.php:650
 msgid "Transparent proxy: Apache cannot proxy to the storage here, so proxy.php serves the files."
-msgstr ""
+msgstr "Прозорий проксі: Apache тут не може проксувати до сховища, тому файли віддає proxy.php."
 
 #. translators: %s: engine name.
 #: includes/class-simple-storage-delivery.php:652
 #, php-format
 msgid "Transparent proxy: Apache serves the files itself (%s), no PHP is involved."
-msgstr ""
+msgstr "Прозорий проксі: Apache віддає файли сам (%s), без участі PHP."
 
 #. translators: %s: file path.
 #: includes/class-simple-storage-delivery.php:672
 #, php-format
 msgid "Could not write the rules to %s. Missing files are then served only where the server passes such requests to WordPress."
-msgstr ""
+msgstr "Не вдалося записати правила в %s. Тоді відсутні файли віддаються лише там, де сервер передає такі запити у WordPress."
 
 #: includes/class-simple-storage-github-updater.php:102
 msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly."
-msgstr ""
+msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
 msgid "Version 0.2.0 is the first working release: indexing of the media folders, transfer to the storage and back with SHA-256 verification, serving through a transparent proxy or directly from the storage with an end-to-end check before local copies are deleted, automatic transfer of new uploads, image editing and thumbnail regeneration (WP-CLI, Regenerate Thumbnails, Timber resizing) for files that live only in the storage, functions for themes, WP-CLI commands, updates from GitHub and a Ukrainian translation."
-msgstr ""
+msgstr "Версія 0.2.0 — перший робочий випуск: індексування медіатек, перенесення в сховище й назад із перевіркою SHA-256, віддача через прозорий проксі або напряму зі сховища з наскрізною перевіркою перед видаленням локальних копій, автоматичне перенесення нових файлів, редагування зображень і перенарізка мініатюр (WP-CLI, Regenerate Thumbnails, ресайз Timber) для файлів, що лежать лише в сховищі, функції для тем, команди WP-CLI, оновлення з GitHub і українська локалізація."
 
 #: includes/class-simple-storage-index.php:195
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
-msgstr ""
+msgstr "Конфлікт імен: на місці файлу, який є лише в сховищі, з’явився інший локальний файл. Обидва збережено; перейменуйте або видаліть один із них і проіндексуйте знову."
 
 #: includes/class-simple-storage-jobs.php:65
 msgid "Unknown job."
-msgstr ""
+msgstr "Невідома задача."
 
 #: includes/class-simple-storage-jobs.php:68
 msgid "Another job is not finished yet. Continue or cancel it first."
-msgstr ""
+msgstr "Інша задача ще не завершена. Спершу продовжте або скасуйте її."
 
 #: includes/class-simple-storage-jobs.php:106
 msgid "started."
-msgstr ""
+msgstr "розпочато."
 
 #: includes/class-simple-storage-jobs.php:115
 msgid "There is no paused job."
-msgstr ""
+msgstr "Немає призупиненої задачі."
 
 #: includes/class-simple-storage-jobs.php:139
 msgid "cancelled."
-msgstr ""
+msgstr "скасовано."
 
 #: includes/class-simple-storage-jobs.php:151
 #: includes/class-simple-storage-jobs.php:163
 msgid "There is no running job."
-msgstr ""
+msgstr "Немає задачі, що виконується."
 
 #: includes/class-simple-storage-jobs.php:156
 msgid "The job is already being processed in another request."
-msgstr ""
+msgstr "Задача вже виконується в іншому запиті."
 
 #. translators: 1: phase name, 2: number of files.
 #: includes/class-simple-storage-jobs.php:259
 #, php-format
 msgid "%1$s: %2$d files failed; see the error list."
-msgstr ""
+msgstr "%1$s: файлів з помилкою — %2$d; див. список помилок."
 
 #: includes/class-simple-storage-jobs.php:278
 msgid "finished."
-msgstr ""
+msgstr "завершено."
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:281
 #, php-format
 msgid "%d file failed."
 msgid_plural "%d files failed."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d файл з помилкою."
+msgstr[1] "%d файли з помилкою."
+msgstr[2] "%d файлів з помилкою."
 
 #. translators: %s: failed test step and its message.
 #: includes/class-simple-storage-jobs.php:400
 #, php-format
 msgid "Connection test failed: %s"
-msgstr ""
+msgstr "Перевірка з’єднання не вдалася: %s"
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:515
 #, php-format
 msgid "%d files that no longer exist were removed from the index."
-msgstr ""
+msgstr "З індексу прибрано файлів, яких більше немає: %d."
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:622
 #, php-format
 msgid "The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting."
-msgstr ""
+msgstr "Тека в сховищі виглядає порожньою, хоча за індексом там файлів: %d. Індекс залишено без змін — перевірте налаштування теки сайту."
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:635
 #, php-format
 msgid "%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats."
-msgstr ""
+msgstr "Записаних файлів, яких немає в списку сховища: %d. Індекс залишено без змін — проіндексуйте ще раз пізніше, а якщо повториться, перевірте панель сховища."
 
 #. translators: 1: number of files, 2: list of paths.
 #: includes/class-simple-storage-jobs.php:666
 #, php-format
 msgid "%1$d files exist neither locally nor in the storage: %2$s"
-msgstr ""
+msgstr "Файлів, яких немає ні локально, ні в сховищі: %1$d — %2$s"
 
 #. translators: %s: error message.
 #: includes/class-simple-storage-jobs.php:684
 #, php-format
 msgid "The storage could not be read, only local files were indexed: %s"
-msgstr ""
+msgstr "Не вдалося прочитати сховище, проіндексовано лише локальні файли: %s"
 
 #. translators: 1: file extension, 2: error message.
 #: includes/class-simple-storage-jobs.php:764
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage and stay local: %2$s"
-msgstr ""
+msgstr "Файли з розширенням .%1$s не віддаються зі сховища й лишаються на сайті: %2$s"
 
 #: includes/class-simple-storage-jobs.php:780
 msgid "Serving from the storage is off, so local copies were kept."
-msgstr ""
+msgstr "Віддачу зі сховища вимкнено, тому локальні копії збережено."
 
 #. translators: %s: file extension.
 #: includes/class-simple-storage-jobs.php:793
 #, php-format
 msgid "Serving .%s files from the storage is not verified, so the local file was kept."
-msgstr ""
+msgstr "Віддачу файлів .%s зі сховища не перевірено, тому локальний файл збережено."
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:809
 #, php-format
 msgid "%d files are still stored locally; run the transfer again after checking the errors."
-msgstr ""
+msgstr "Файлів, що досі зберігаються локально: %d. Перевірте помилки й запустіть перенесення ще раз."
 
 #. translators: 1: required size, 2: free size.
 #: includes/class-simple-storage-jobs.php:829
 #, php-format
 msgid "Not enough disk space: %1$s is needed, %2$s is free."
-msgstr ""
+msgstr "Недостатньо місця на диску: потрібно %1$s, вільно %2$s."
 
 #: includes/class-simple-storage-jobs.php:894
 msgid "All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear."
-msgstr ""
+msgstr "Усі файли повернулися у WordPress. Якщо сайт працює через Cloudflare чи інший CDN, очистіть його кеш, щоб зникли закешовані переадресації на сховище."
 
 #. translators: %d: number of files.
 #: includes/class-simple-storage-jobs.php:897
 #, php-format
 msgid "%d files are still only in the storage, so serving from the storage stays on. Check the errors and run the transfer again."
-msgstr ""
+msgstr "Файлів, що досі є лише в сховищі: %d, тому віддача зі сховища лишається ввімкненою. Перевірте помилки й запустіть повернення ще раз."
 
 #: includes/class-simple-storage-jobs.php:1002
 msgid "Indexing"
-msgstr ""
+msgstr "Індексування"
 
 #: includes/class-simple-storage-jobs.php:1003
 msgid "Transfer to the storage"
-msgstr ""
+msgstr "Перенесення в сховище"
 
 #: includes/class-simple-storage-jobs.php:1004
 msgid "Return from the storage"
-msgstr ""
+msgstr "Повернення зі сховища"
 
 #: includes/class-simple-storage-jobs.php:1012
 msgid "Connection check"
-msgstr ""
+msgstr "Перевірка з’єднання"
 
 #: includes/class-simple-storage-jobs.php:1013
 msgid "Finding media folders"
-msgstr ""
+msgstr "Пошук медіатек"
 
 #: includes/class-simple-storage-jobs.php:1014
 msgid "Indexing local files"
-msgstr ""
+msgstr "Індексування локальних файлів"
 
 #: includes/class-simple-storage-jobs.php:1015
 msgid "Updating the index"
-msgstr ""
+msgstr "Оновлення індексу"
 
 #: includes/class-simple-storage-jobs.php:1016
 msgid "Finding folders in the storage"
-msgstr ""
+msgstr "Пошук тек у сховищі"
 
 #: includes/class-simple-storage-jobs.php:1017
 msgid "Indexing files in the storage"
-msgstr ""
+msgstr "Індексування файлів у сховищі"
 
 #: includes/class-simple-storage-jobs.php:1018
 msgid "Reconciling the index"
-msgstr ""
+msgstr "Звірка індексу"
 
 #: includes/class-simple-storage-jobs.php:1019
 msgid "Copying to the storage"
-msgstr ""
+msgstr "Копіювання в сховище"
 
 #: includes/class-simple-storage-jobs.php:1020
 msgid "Verifying copies"
-msgstr ""
+msgstr "Перевірка копій"
 
 #: includes/class-simple-storage-jobs.php:1021
 msgid "Enabling serving from the storage"
-msgstr ""
+msgstr "Увімкнення віддачі зі сховища"
 
 #: includes/class-simple-storage-jobs.php:1022
 msgid "Checking serving from the storage"
-msgstr ""
+msgstr "Перевірка віддачі зі сховища"
 
 #: includes/class-simple-storage-jobs.php:1023
 msgid "Deleting local copies"
-msgstr ""
+msgstr "Видалення локальних копій"
 
 #: includes/class-simple-storage-jobs.php:1024
 #: includes/class-simple-storage-jobs.php:1028
 msgid "Finishing"
-msgstr ""
+msgstr "Завершення"
 
 #: includes/class-simple-storage-jobs.php:1025
 msgid "Downloading to WordPress"
-msgstr ""
+msgstr "Завантаження у WordPress"
 
 #: includes/class-simple-storage-jobs.php:1026
 msgid "Deleting copies in the storage"
-msgstr ""
+msgstr "Видалення копій у сховищі"
 
 #: includes/class-simple-storage-jobs.php:1027
 msgid "Removing empty storage folders"
-msgstr ""
+msgstr "Видалення порожніх тек у сховищі"
 
 #. translators: 1: number of files, 2: folder.
 #: includes/class-simple-storage-media.php:190
 #, php-format
 msgid "Automatically moved %1$d new files from %2$s to the storage."
-msgstr ""
+msgstr "Автоматично перенесено в сховище нових файлів із %2$s: %1$d."
 
 #. translators: %s: file path.
 #: includes/class-simple-storage-media.php:263
 #, php-format
 msgid "%s was brought back from the storage to be processed locally."
-msgstr ""
+msgstr "%s повернуто зі сховища для обробки на сайті."
 
 #. translators: %s: file path.
 #: includes/class-simple-storage-media.php:1022
 #, php-format
 msgid "Could not delete %s from the storage; delete it manually."
-msgstr ""
+msgstr "Не вдалося видалити %s зі сховища — видаліть його вручну."
 
 #: includes/class-simple-storage-plugin.php:51
 msgid "Simple Storage supports single-site WordPress installations only and does nothing on this network."
-msgstr ""
+msgstr "Simple Storage працює лише на звичайних встановленнях WordPress і в цій мережі нічого не робить."
 
 #: includes/class-simple-storage-plugin.php:64
 msgid "Simple Storage supports single-site WordPress installations only and was not activated."
-msgstr ""
+msgstr "Simple Storage працює лише на звичайних встановленнях WordPress, тому його не активовано."
 
 #: includes/class-simple-storage-plugin.php:65
 msgid "Plugin activation refused"
-msgstr ""
+msgstr "Активацію плагіна відхилено"
 
 #: includes/class-simple-storage-tester.php:47
 msgid "Authorization"
-msgstr ""
+msgstr "Авторизація"
 
 #: includes/class-simple-storage-tester.php:54
 msgid "Write access"
-msgstr ""
+msgstr "Право на запис"
 
 #: includes/class-simple-storage-tester.php:54
 msgid "The storage user has no \"Write\" right. Enable Read, Write and Content for this user and test again."
-msgstr ""
+msgstr "У користувача сховища немає права «Запис». Увімкніть йому «Читання», «Запис» і «Вміст» і перевірте ще раз."
 
 #: includes/class-simple-storage-tester.php:58
 msgid "Site folder"
-msgstr ""
+msgstr "Тека сайту"
 
 #: includes/class-simple-storage-tester.php:72
 msgid "Upload"
-msgstr ""
+msgstr "Завантаження"
 
 #: includes/class-simple-storage-tester.php:78
 msgid "File size in the storage"
-msgstr ""
+msgstr "Розмір файлу в сховищі"
 
 #: includes/class-simple-storage-tester.php:93
 msgid "Public access"
-msgstr ""
+msgstr "Публічний доступ"
 
 #: includes/class-simple-storage-tester.php:93
 msgid "Public access is off: in the storage panel, on the \"Users and API\" tab, give the \"Public access\" user the \"Read\" right (without \"Content\")."
-msgstr ""
+msgstr "Публічний доступ вимкнено: у панелі сховища на вкладці «Користувачі та API» дайте користувачу «Публічний доступ» право «Читання» (без «Вмісту»)."
 
 #: includes/class-simple-storage-tester.php:98
 msgid "Directory listing"
-msgstr ""
+msgstr "Список каталогу"
 
 #. translators: 1: URL, 2: HTTP status code.
 #: includes/class-simple-storage-tester.php:110
 #, php-format
 msgid "%1$s answered %2$d. Check public access and, for your own domain, its DNS record and certificate."
-msgstr ""
+msgstr "%1$s відповів %2$d. Перевірте публічний доступ, а для свого домену — його DNS-запис і сертифікат."
 
 #. translators: %s: URI reported by the storage.
 #: includes/class-simple-storage-tester.php:113
 #, php-format
 msgid "The storage reports the direct link as %s."
-msgstr ""
+msgstr "Сховище повідомляє пряме посилання як %s."
 
 #: includes/class-simple-storage-tester.php:116
 msgid "The downloaded file differs from the uploaded one."
-msgstr ""
+msgstr "Завантажений файл відрізняється від надісланого."
 
 #: includes/class-simple-storage-tester.php:120
 msgid "Public download"
-msgstr ""
+msgstr "Завантаження за публічною адресою"
 
 #: includes/class-simple-storage-transfer.php:60
 msgid "The uploaded file has a different size in the storage."
-msgstr ""
+msgstr "Надісланий файл має в сховищі інший розмір."
 
 #: includes/class-simple-storage-transfer.php:110
 msgid "The remote copy is missing or has a different size; it will be uploaded again."
-msgstr ""
+msgstr "Копії в сховищі немає або вона іншого розміру — файл буде надіслано знову."
 
 #. translators: %d: HTTP status code.
 #: includes/class-simple-storage-transfer.php:122
 #, php-format
 msgid "The public address answered %d. Check public access in the storage panel."
-msgstr ""
+msgstr "Публічна адреса відповіла %d. Перевірте публічний доступ у панелі сховища."
 
 #: includes/class-simple-storage-transfer.php:134
 msgid "The downloaded copy differs from the local file; it will be uploaded again."
-msgstr ""
+msgstr "Завантажена копія відрізняється від локального файлу — файл буде надіслано знову."
 
 #: includes/class-simple-storage-transfer.php:177
 msgid "The file changed after verification and was kept; it will be uploaded again."
-msgstr ""
+msgstr "Файл змінився після перевірки, тому його збережено — його буде надіслано знову."
 
 #: includes/class-simple-storage-transfer.php:194
 msgid "The copy in the storage is missing or differs, so the local file was kept; it will be uploaded again."
-msgstr ""
+msgstr "Копії в сховищі немає або вона відрізняється, тому локальний файл збережено — його буде надіслано знову."
 
 #: includes/class-simple-storage-transfer.php:199
 msgid "The local file could not be deleted."
-msgstr ""
+msgstr "Не вдалося видалити локальний файл."
 
 #: includes/class-simple-storage-transfer.php:227
 msgid "A different local file already exists at this path; it was kept and the remote copy was not downloaded."
-msgstr ""
+msgstr "За цим шляхом уже є інший локальний файл — його збережено, а копію зі сховища не завантажено."
 
 #: includes/class-simple-storage-transfer.php:236
 msgid "The local folder could not be created."
-msgstr ""
+msgstr "Не вдалося створити локальну теку."
 
 #. translators: %d: HTTP status code.
 #: includes/class-simple-storage-transfer.php:247
 #, php-format
 msgid "The public address answered %d."
-msgstr ""
+msgstr "Публічна адреса відповіла %d."
 
 #: includes/class-simple-storage-transfer.php:249
 msgid "The downloaded file does not match the recorded size or checksum."
-msgstr ""
+msgstr "Завантажений файл не збігається із записаним розміром чи контрольною сумою."
 
 #: includes/class-simple-storage-transfer.php:255
 msgid "The downloaded file could not be moved into place."
-msgstr ""
+msgstr "Не вдалося перемістити завантажений файл на місце."
 
 #: includes/class-simple-storage-transfer.php:286
 msgid "The local copy is missing, so the remote copy was kept."
-msgstr ""
+msgstr "Локальної копії немає, тому копію в сховищі збережено."
 
 #: includes/class-simple-storage-transfer.php:292
 msgid "The local file does not match the remote copy, so the remote copy was kept."
-msgstr ""
+msgstr "Локальний файл не збігається з копією в сховищі, тому її збережено."
 
 #: includes/views/log.php:11
 msgid "Info"
-msgstr ""
+msgstr "Інформація"
 
 #: includes/views/log.php:12
 msgid "Warning"
-msgstr ""
+msgstr "Попередження"
 
 #: includes/views/log.php:13
 #: includes/views/log.php:54
 msgid "Error"
-msgstr ""
+msgstr "Помилка"
 
 #: includes/views/log.php:20
 msgid "The log is empty."
-msgstr ""
+msgstr "Журнал порожній."
 
 #: includes/views/log.php:25
 msgid "Time"
-msgstr ""
+msgstr "Час"
 
 #: includes/views/log.php:26
 msgid "Level"
-msgstr ""
+msgstr "Рівень"
 
 #: includes/views/log.php:27
 msgid "Message"
-msgstr ""
+msgstr "Повідомлення"
 
 #: includes/views/log.php:41
 msgid "Clear the log"
-msgstr ""
+msgstr "Очистити журнал"
 
 #: includes/views/log.php:45
 #: includes/views/overview.php:125
 msgid "Files with errors"
-msgstr ""
+msgstr "Файли з помилками"
 
 #: includes/views/log.php:53
 msgid "File"
-msgstr ""
+msgstr "Файл"
 
 #: includes/views/log.php:66
 #: includes/views/overview.php:127
 msgid "Clear the error list"
-msgstr ""
+msgstr "Очистити список помилок"
 
 #: includes/views/overview.php:17
 msgid "The storage is not connected yet. You can already index the media files; transfers need the connection."
-msgstr ""
+msgstr "Сховище ще не підключено. Проіндексувати медіафайли вже можна, а для перенесення потрібне підключення."
 
 #: includes/views/overview.php:18
 msgid "Connect the storage"
-msgstr ""
+msgstr "Підключити сховище"
 
 #: includes/views/overview.php:25
 msgid "Media files"
-msgstr ""
+msgstr "Медіафайли"
 
 #: includes/views/overview.php:26
 msgid "Files in the year and month folders of uploads, the ones added through the Media Library. Other folders in wp-content are not touched."
-msgstr ""
+msgstr "Файли в теках років і місяців у uploads — ті, що додані через Медіабібліотеку. Інші теки wp-content не чіпаються."
 
 #: includes/views/overview.php:30
 msgid "All media files"
-msgstr ""
+msgstr "Усі медіафайли"
 
 #: includes/views/overview.php:35
 msgid "Only in WordPress"
-msgstr ""
+msgstr "Лише у WordPress"
 
 #: includes/views/overview.php:40
 msgid "In WordPress and in the storage"
-msgstr ""
+msgstr "У WordPress і в сховищі"
 
 #: includes/views/overview.php:45
 msgid "Only in the storage"
-msgstr ""
+msgstr "Лише в сховищі"
 
 #: includes/views/overview.php:52
 msgid "Last indexed:"
-msgstr ""
+msgstr "Останнє індексування:"
 
 #: includes/views/overview.php:53
 msgid "Errors:"
-msgstr ""
+msgstr "Помилок:"
 
 #: includes/views/overview.php:55
 msgid "Index media files"
-msgstr ""
+msgstr "Проіндексувати медіафайли"
 
 #: includes/views/overview.php:59
 msgid "Storage"
-msgstr ""
+msgstr "Сховище"
 
 #: includes/views/overview.php:63
 msgid "Connection"
-msgstr ""
+msgstr "З’єднання"
 
 #: includes/views/overview.php:67
 #: includes/views/settings.php:29
 msgid "Storage address"
-msgstr ""
+msgstr "Адреса сховища"
 
 #: includes/views/overview.php:71
 msgid "Files are served from"
-msgstr ""
+msgstr "Файли віддаються з"
 
 #: includes/views/overview.php:75
 msgid "Serving from the storage"
-msgstr ""
+msgstr "Віддача зі сховища"
 
 #: includes/views/overview.php:85
 #: includes/views/settings.php:114
 msgid "New uploads"
-msgstr ""
+msgstr "Нові файли"
 
 #: includes/views/overview.php:98
 msgid "Transfer"
-msgstr ""
+msgstr "Перенесення"
 
 #: includes/views/overview.php:101
 msgid "Move everything to the storage"
-msgstr ""
+msgstr "Перенести все в сховище"
 
 #: includes/views/overview.php:102
 msgid "Copy → verify → enable serving from the storage → delete local copies. A local file is deleted only after its copy in the storage has been verified."
-msgstr ""
+msgstr "Копіювання → перевірка → увімкнення віддачі зі сховища → видалення локальних копій. Локальний файл видаляється лише після перевірки його копії в сховищі."
 
 #: includes/views/overview.php:105
 msgid "Return everything to WordPress"
-msgstr ""
+msgstr "Повернути все у WordPress"
 
 #: includes/views/overview.php:106
 msgid "Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads."
-msgstr ""
+msgstr "Завантаження → перевірка → видалення зі сховища → вимкнення віддачі зі сховища. У результаті — звичайний WordPress з усіма медіафайлами в uploads."
 
 #: includes/views/overview.php:131
 msgid "Recent events"
-msgstr ""
+msgstr "Останні події"
 
 #: includes/views/overview.php:133
 msgid "Full log"
-msgstr ""
+msgstr "Увесь журнал"
 
 #. translators: %s: constant name.
 #: includes/views/settings.php:18
 #, php-format
 msgid "Set by the %s constant in wp-config.php."
-msgstr ""
+msgstr "Задано константою %s у wp-config.php."
 
 #: includes/views/settings.php:25
 msgid "Storage connection"
-msgstr ""
+msgstr "Підключення до сховища"
 
 #: includes/views/settings.php:36
 msgid "Shown at the top of the storage section in the hosting control panel."
-msgstr ""
+msgstr "Вказана вгорі розділу сховища в панелі керування хостингом."
 
 #: includes/views/settings.php:41
 msgid "Login"
-msgstr ""
+msgstr "Логін"
 
 #: includes/views/settings.php:48
 msgid "A web access user of the storage (\"Users and API\" tab) with the Read, Write and Content rights."
-msgstr ""
+msgstr "Користувач веб-доступу до сховища (вкладка «Користувачі та API») з правами «Читання», «Запис» і «Вміст»."
 
 #: includes/views/settings.php:53
 msgid "Password"
-msgstr ""
+msgstr "Пароль"
 
 #: includes/views/settings.php:58
 msgid "Saved — leave empty to keep it"
-msgstr ""
+msgstr "Збережено — залиште порожнім, щоб не змінювати"
 
 #: includes/views/settings.php:59
 msgid "Stored encrypted with the WordPress salts. You can also define it as the SIMPLE_STORAGE_PASSWORD constant in wp-config.php."
-msgstr ""
+msgstr "Зберігається зашифрованим за допомогою солей WordPress. Також його можна задати константою SIMPLE_STORAGE_PASSWORD у wp-config.php."
 
 #: includes/views/settings.php:64
 msgid "Public address"
-msgstr ""
+msgstr "Публічна адреса"
 
 #: includes/views/settings.php:67
 msgid "Optional: your own domain connected to the storage. Empty means the storage address. Do not use the address of the site itself."
-msgstr ""
+msgstr "Необов’язково: ваш домен, підключений до сховища. Якщо порожньо — використовується адреса сховища. Не вказуйте адресу самого сайту."
 
 #: includes/views/settings.php:71
 msgid "Site folder in the storage"
-msgstr ""
+msgstr "Тека сайту в сховищі"
 
 #: includes/views/settings.php:76
 msgid "Locked while the storage holds files of this site. Return them to WordPress to change it."
-msgstr ""
+msgstr "Заблоковано, поки в сховищі є файли цього сайту. Щоб змінити, поверніть їх у WordPress."
 
 #: includes/views/settings.php:78
 msgid "Each site keeps its media in its own folder, so several sites can share one storage. The media keep their year/month structure inside it."
-msgstr ""
+msgstr "Кожен сайт зберігає медіафайли у власній теці, тож одне сховище можуть використовувати кілька сайтів. Усередині теки зберігається структура рік/місяць."
 
 #: includes/views/settings.php:85
 msgid "Transfer and serving"
-msgstr ""
+msgstr "Перенесення й віддача"
 
 #: includes/views/settings.php:89
 msgid "How files are served"
-msgstr ""
+msgstr "Як віддаються файли"
 
 #: includes/views/settings.php:94
 msgid "Transparent proxy"
-msgstr ""
+msgstr "Прозорий проксі"
 
 #: includes/views/settings.php:96
 msgid "Addresses stay exactly as they were (/wp-content/uploads/…). A small PHP script without WordPress streams each missing file from the storage. Every request that is not cached takes a PHP process and traffic of the site hosting, so it works best behind Cloudflare or another CDN."
-msgstr ""
+msgstr "Адреси лишаються такими самими, як були (/wp-content/uploads/…). Невеликий PHP-скрипт без WordPress передає кожен відсутній файл зі сховища. Кожен незакешований запит займає PHP-процес і трафік хостингу сайту, тому найкраще працює за Cloudflare чи іншим CDN."
 
 #: includes/views/settings.php:99
 msgid "Directly from the storage"
-msgstr ""
+msgstr "Напряму зі сховища"
 
 #: includes/views/settings.php:101
 msgid "Pages link straight to the storage (or your subdomain of it) and old addresses are redirected there. The fastest option: the site does no work for media at all."
-msgstr ""
+msgstr "Сторінки посилаються прямо на сховище (або ваш піддомен для нього), а старі адреси переадресовуються туди. Найшвидший варіант: сайт зовсім не витрачає ресурси на медіафайли."
 
 #: includes/views/settings.php:103
 msgid "The mode can be switched at any time; files do not move."
-msgstr ""
+msgstr "Режим можна змінити будь-коли — файли при цьому не переносяться."
 
 #: includes/views/settings.php:107
 msgid "Verification"
-msgstr ""
+msgstr "Перевірка"
 
 #: includes/views/settings.php:109
 msgid "Strict: download every copy from its public address and compare its SHA-256 with the local file"
-msgstr ""
+msgstr "Сувора: завантажувати кожну копію за публічною адресою й порівнювати її SHA-256 з локальним файлом"
 
 #: includes/views/settings.php:110
 msgid "Without it, the size in the storage and the size served at the public address are compared. Local files are deleted only after verification in both modes."
-msgstr ""
+msgstr "Без неї порівнюються розмір у сховищі й розмір файлу, що віддається за публічною адресою. В обох режимах локальні файли видаляються лише після перевірки."
 
 #: includes/views/settings.php:116
 msgid "Move new uploads to the storage automatically after everything has been moved"
-msgstr ""
+msgstr "Автоматично переносити нові файли в сховище після загального перенесення"
 
 #: includes/views/settings.php:117
 msgid "A few minutes after an upload, once WordPress has created the thumbnails, the new files are copied, verified and deleted locally. If the storage is unavailable they stay in WordPress."
-msgstr ""
+msgstr "За кілька хвилин після завантаження, коли WordPress створить мініатюри, нові файли копіюються, перевіряються й видаляються локально. Якщо сховище недоступне, вони лишаються у WordPress."
 
 #: includes/views/settings.php:121
 msgid "Redirect for old addresses"
-msgstr ""
+msgstr "Переадресація старих адрес"
 
 #: includes/views/settings.php:124
 msgid "302 — temporary (recommended)"
-msgstr ""
+msgstr "302 — тимчасова (рекомендовано)"
 
 #: includes/views/settings.php:125
 msgid "301 — permanent"
-msgstr ""
+msgstr "301 — постійна"
 
 #: includes/views/settings.php:127
 msgid "Only for the \"Directly from the storage\" mode: pages link to the storage, and the redirect catches old /wp-content/uploads/ links. Browsers remember a 301 for a long time, which breaks images for those visitors after the files are returned to WordPress."
-msgstr ""
+msgstr "Лише для режиму «Напряму зі сховища»: сторінки посилаються на сховище, а переадресація ловить старі посилання /wp-content/uploads/. Браузери надовго запам’ятовують 301, і після повернення файлів у WordPress у таких відвідувачів зламаються зображення."
 
 #: includes/views/settings.php:136
 msgid "Connection test"
-msgstr ""
+msgstr "Перевірка з’єднання"
 
 #: includes/views/settings.php:137
 msgid "Uploads a small file to the site folder, reads it back through the public address and deletes it. Real media are not touched."
-msgstr ""
+msgstr "Надсилає невеликий файл у теку сайту, читає його за публічною адресою й видаляє. Справжні медіафайли не чіпаються."
 
 #: includes/views/settings.php:138
 msgid "Test the connection"
-msgstr ""
+msgstr "Перевірити з’єднання"
 
 #: includes/views/settings.php:141
 msgid "Preparing the storage"
-msgstr ""
+msgstr "Підготовка сховища"
 
 #: includes/views/settings.php:143
 msgid "In the hosting control panel, open the storage and the \"Users and API\" tab."
-msgstr ""
+msgstr "У панелі керування хостингом відкрийте сховище й вкладку «Користувачі та API»."
 
 #: includes/views/settings.php:144
 msgid "Add a user with the Read, Write and Content rights and enter its login and password here."
-msgstr ""
+msgstr "Додайте користувача з правами «Читання», «Запис» і «Вміст» і введіть тут його логін і пароль."
 
 #: includes/views/settings.php:145
 msgid "For the \"Public access\" user, enable only \"Read\": files open by direct links while the file list stays hidden."
-msgstr ""
+msgstr "Для користувача «Публічний доступ» увімкніть лише «Читання»: файли відкриватимуться за прямими посиланнями, а список файлів лишиться прихованим."
 
 #: includes/views/settings.php:146
 msgid "Optionally, on the \"Settings\" tab of the storage, set browser caching and the HTTP to HTTPS redirect, and connect your own subdomain for the public address."
-msgstr ""
+msgstr "За бажанням на вкладці «Налаштування» сховища задайте браузерне кешування й переадресацію з HTTP на HTTPS, а також підключіть свій піддомен для публічної адреси."

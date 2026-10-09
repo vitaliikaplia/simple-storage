@@ -1,0 +1,7 @@
+# Development-only files stay out of GitHub source archives, which are the update packages.
+/tests          export-ignore
+/.gitattributes export-ignore
+/.gitignore     export-ignore
+/.idea          export-ignore
+/AGENTS.md      export-ignore
+/CLAUDE.md      export-ignore
