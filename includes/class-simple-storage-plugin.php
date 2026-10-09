@@ -28,6 +28,7 @@ final class Simple_Storage_Plugin {
 		Simple_Storage_Index::maybe_install();
 		Simple_Storage_Delivery::init();
 		Simple_Storage_Media::init();
+		Simple_Storage_Prune::init();
 		Simple_Storage_Timber::init();
 		Simple_Storage_Runner::init();
 
@@ -88,5 +89,6 @@ final class Simple_Storage_Plugin {
 		Simple_Storage_Jobs::pause();
 		wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 		wp_unschedule_hook( Simple_Storage_Timber::GENERATE_HOOK );
+		wp_unschedule_hook( Simple_Storage_Prune::HOOK );
 	}
 }

@@ -670,7 +670,7 @@ final class Simple_Storage_Media {
 	}
 
 	/** Whether a `wp media regenerate` run (in any process) is bringing originals back right now. */
-	private static function regeneration_running(): bool {
+	public static function regeneration_running(): bool {
 		$since = (int) get_option( self::REGENERATING_OPTION, 0 );
 
 		return $since > time() - 15 * MINUTE_IN_SECONDS;
@@ -932,6 +932,8 @@ final class Simple_Storage_Media {
 				// later retry deletes the remote copy, unless a new file has taken the name by then.
 				Simple_Storage_Log::error( $row['path'] . ': ' . $deleted->get_error_message() );
 				Simple_Storage_Runner::schedule_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( (string) $row['path'], 1 ) );
+			} else {
+				Simple_Storage_Prune::schedule( (string) $row['path'] );
 			}
 
 			if ( $row['local'] && is_file( Simple_Storage_Paths::local( $relative ) ) ) {
@@ -1158,6 +1160,8 @@ final class Simple_Storage_Media {
 			if ( is_wp_error( $deleted ) ) {
 				Simple_Storage_Log::error( $relative . ': ' . $deleted->get_error_message() );
 				Simple_Storage_Runner::schedule_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( $relative, 1 ) );
+			} else {
+				Simple_Storage_Prune::schedule( $relative );
 			}
 		}
 
@@ -1181,6 +1185,7 @@ final class Simple_Storage_Media {
 		$deleted = is_wp_error( $client ) ? $client : $client->delete_file( Simple_Storage_Paths::remote( $relative ) );
 		if ( ! is_wp_error( $deleted ) ) {
 			Simple_Storage_Index::delete_path( $relative );
+			Simple_Storage_Prune::schedule( $relative );
 
 			return;
 		}

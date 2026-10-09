@@ -103,6 +103,17 @@ final class Simple_Storage_Index {
 		return $result;
 	}
 
+	/** Whether the index knows a file in the storage anywhere under this folder; yes when unsure. */
+	public static function has_remote_under( string $dir ): bool {
+		global $wpdb;
+
+		$found = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare( 'SELECT 1 FROM ' . self::table() . ' WHERE remote = 1 AND path LIKE %s LIMIT 1', $wpdb->esc_like( $dir . '/' ) . '%' ) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		);
+
+		return null !== $found || '' !== (string) $wpdb->last_error;
+	}
+
 	/**
 	 * Rows of one folder keyed by path, for folder-level scans.
 	 *

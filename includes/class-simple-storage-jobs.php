@@ -556,6 +556,7 @@ final class Simple_Storage_Jobs {
 		sort( $dirs );
 		$this->job['dirs']        = $dirs;
 		$this->job['dir_pos']     = 0;
+		$this->job['prune_pos']   = 0;
 		$this->job['remote_scan'] = self::next_scan_id();
 		$this->job['remote_seen'] = 0;
 
@@ -854,30 +855,24 @@ final class Simple_Storage_Jobs {
 		);
 	}
 
-	/** Remove month and year folders left empty in the storage. @return bool|WP_Error */
+	/** Remove the folders the pull left empty in the storage, month by month. @return bool|WP_Error */
 	private function phase_prune_remote( float $deadline ) {
 		$client = $this->client();
 		if ( is_wp_error( $client ) ) {
 			return $client;
 		}
 
-		$root  = Simple_Storage_Paths::remote_root();
-		$years = array();
-		foreach ( $this->job['dirs'] as $dir ) {
-			$items = $client->list_dir( $root . '/' . $dir, true );
-			if ( is_wp_error( $items ) ) {
-				continue;
-			}
-			if ( ! in_array( false, array_column( $items, 'directory' ), true ) ) {
-				$client->delete_dir( $root . '/' . $dir );
-			}
-			$years[ substr( (string) $dir, 0, 4 ) ] = true;
-		}
+		$this->job['prune_pos'] = (int) ( $this->job['prune_pos'] ?? 0 );
+		while ( $this->job['prune_pos'] < count( $this->job['dirs'] ) ) {
+			$dir                  = (string) $this->job['dirs'][ $this->job['prune_pos'] ];
+			$this->job['current'] = $dir;
 
-		foreach ( array_keys( $years ) as $year ) {
-			$items = $client->list_dir( $root . '/' . $year );
-			if ( ! is_wp_error( $items ) && empty( $items ) ) {
-				$client->delete_dir( $root . '/' . $year );
+			// A folder that cannot be pruned now stays; the pull does not fail over it.
+			Simple_Storage_Prune::prune_locked( $client, $dir );
+			++$this->job['prune_pos'];
+
+			if ( microtime( true ) >= $deadline ) {
+				return $this->job['prune_pos'] >= count( $this->job['dirs'] );
 			}
 		}
 
@@ -955,7 +950,8 @@ final class Simple_Storage_Jobs {
 		$current = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::LOCK_OPTION ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$lock    = is_string( $current ) ? maybe_unserialize( $current ) : null;
 		if ( is_array( $lock ) && ( $lock['token'] ?? '' ) === $token ) {
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", self::LOCK_OPTION ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			// Only the row just read: an expired lock may have been taken over in between.
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", self::LOCK_OPTION, $current ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		}
 		wp_cache_delete( self::LOCK_OPTION, 'options' );
 	}
@@ -985,6 +981,27 @@ final class Simple_Storage_Jobs {
 			)
 		);
 		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", $value, self::LOCK_OPTION, $current ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Whether this request still holds the lock, with at least this many seconds left: checked
+	 * right before work that must never overlap an upload (deleting a storage folder).
+	 */
+	public static function holds_lock( int $margin = 0 ): bool {
+		global $wpdb;
+
+		if ( null === self::$held ) {
+			return false;
+		}
+
+		$current = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::LOCK_OPTION ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$lock    = is_string( $current ) ? maybe_unserialize( $current ) : null;
+
+		return is_array( $lock ) && ( $lock['token'] ?? '' ) === self::$held && (int) ( $lock['expires'] ?? 0 ) - time() >= $margin;
+	}
+
+	public static function lock_lost(): WP_Error {
+		return new WP_Error( 'simple_storage_lock_lost', __( 'The job lock was lost; the work will be done again later.', 'simple-storage' ) );
 	}
 
 	/** Whether a step or an automatic offload currently holds the lock. */

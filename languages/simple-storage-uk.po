@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.3.1\n"
+"Project-Id-Version: Simple Storage 0.3.2\n"
 "Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
 "PO-Revision-Date: 2026-10-09 07:45+0300\n"
 "Last-Translator: Vitalii Kaplia\n"
@@ -305,35 +305,36 @@ msgid "The storage did not return an access token."
 msgstr "Сховище не повернуло токен доступу."
 
 #: includes/class-simple-storage-client.php:196
-#: includes/class-simple-storage-client.php:539
+#: includes/class-simple-storage-client.php:603
 msgid "The local file cannot be read."
 msgstr "Не вдається прочитати локальний файл."
 
-#: includes/class-simple-storage-client.php:291
+#: includes/class-simple-storage-client.php:293
 msgid "The directory does not exist in the storage."
 msgstr "Такого каталогу в сховищі немає."
 
-#: includes/class-simple-storage-client.php:322
+#: includes/class-simple-storage-client.php:314
+#: includes/class-simple-storage-prune.php:131
 msgid "The storage returned a directory listing that cannot be read."
 msgstr "Сховище повернуло список каталогу, який не вдається прочитати."
 
-#: includes/class-simple-storage-client.php:379
+#: includes/class-simple-storage-client.php:438
 msgid "The local file cannot be written."
 msgstr "Не вдається записати локальний файл."
 
 #. translators: %s: cURL error message.
-#: includes/class-simple-storage-client.php:572
+#: includes/class-simple-storage-client.php:636
 #, php-format
 msgid "Storage request failed: %s"
 msgstr "Запит до сховища не вдався: %s"
 
-#: includes/class-simple-storage-client.php:639
+#: includes/class-simple-storage-client.php:703
 #: includes/class-simple-storage-delivery.php:339
 msgid "Unexpected storage response."
 msgstr "Неочікувана відповідь сховища."
 
 #. translators: 1: HTTP status code, 2: error description.
-#: includes/class-simple-storage-client.php:645
+#: includes/class-simple-storage-client.php:709
 #, php-format
 msgid "Storage answered %1$d: %2$s"
 msgstr "Сховище відповіло %1$d: %2$s"
@@ -383,10 +384,10 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) now deletes its files in the storage too. New files are copied to the storage at the end of the request that wrote them, and their local copies go a minute or two later, once background image optimizers are done with them. Since 0.3.0 the plugin works without WP-Cron."
-msgstr "Версія 0.3.1: видалення вкладення, мовні копії якого видаляються разом (WP-LOC), тепер видаляє його файли й у сховищі. Нові файли копіюються в сховище наприкінці запиту, що їх записав, а їхні локальні копії зникають за хвилину-дві, коли фонові оптимізатори зображень уже закінчили з ними. Від 0.3.0 плагін працює без WP-Cron."
+msgid "Version 0.3.2: folders that deleting files leaves empty in the storage (a month, its subfolders, a year) are removed too, safely, under the job lock. Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) deletes its files in the storage too, and new files are copied to the storage at the end of the request that wrote them."
+msgstr "Версія 0.3.2: теки, які після видалення файлів лишаються в сховищі порожніми (місяць, його підтеки, рік), теж видаляються — безпечно, під блокуванням задач. Версія 0.3.1: видалення вкладення, мовні копії якого видаляються разом (WP-LOC), видаляє його файли й у сховищі, а нові файли копіюються в сховище наприкінці запиту, що їх записав."
 
-#: includes/class-simple-storage-index.php:195
+#: includes/class-simple-storage-index.php:206
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
 msgstr "Конфлікт імен: на місці файлу, який є лише в сховищі, з’явився інший локальний файл. Обидва збережено; перейменуйте або видаліть один із них і проіндексуйте знову."
 
@@ -451,141 +452,145 @@ msgid "%d files that no longer exist were removed from the index."
 msgstr "З індексу прибрано файлів, яких більше немає: %d."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:622
+#: includes/class-simple-storage-jobs.php:623
 #, php-format
 msgid "The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting."
 msgstr "Тека в сховищі виглядає порожньою, хоча за індексом там файлів: %d. Індекс залишено без змін — перевірте налаштування теки сайту."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:635
+#: includes/class-simple-storage-jobs.php:636
 #, php-format
 msgid "%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats."
 msgstr "Записаних файлів, яких немає в списку сховища: %d. Індекс залишено без змін — проіндексуйте ще раз пізніше, а якщо повториться, перевірте панель сховища."
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:666
+#: includes/class-simple-storage-jobs.php:667
 #, php-format
 msgid "%1$d files exist neither locally nor in the storage: %2$s"
 msgstr "Файлів, яких немає ні локально, ні в сховищі: %1$d — %2$s"
 
 #. translators: %s: error message.
-#: includes/class-simple-storage-jobs.php:684
+#: includes/class-simple-storage-jobs.php:685
 #, php-format
 msgid "The storage could not be read, only local files were indexed: %s"
 msgstr "Не вдалося прочитати сховище, проіндексовано лише локальні файли: %s"
 
 #. translators: 1: file extension, 2: error message.
-#: includes/class-simple-storage-jobs.php:764
+#: includes/class-simple-storage-jobs.php:765
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage and stay local: %2$s"
 msgstr "Файли з розширенням .%1$s не віддаються зі сховища й лишаються на сайті: %2$s"
 
-#: includes/class-simple-storage-jobs.php:780
+#: includes/class-simple-storage-jobs.php:781
 msgid "Serving from the storage is off, so local copies were kept."
 msgstr "Віддачу зі сховища вимкнено, тому локальні копії збережено."
 
 #. translators: %s: file extension.
-#: includes/class-simple-storage-jobs.php:793
+#: includes/class-simple-storage-jobs.php:794
 #, php-format
 msgid "Serving .%s files from the storage is not verified, so the local file was kept."
 msgstr "Віддачу файлів .%s зі сховища не перевірено, тому локальний файл збережено."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:809
+#: includes/class-simple-storage-jobs.php:810
 #, php-format
 msgid "%d files are still stored locally; run the transfer again after checking the errors."
 msgstr "Файлів, що досі зберігаються локально: %d. Перевірте помилки й запустіть перенесення ще раз."
 
 #. translators: 1: required size, 2: free size.
-#: includes/class-simple-storage-jobs.php:829
+#: includes/class-simple-storage-jobs.php:830
 #, php-format
 msgid "Not enough disk space: %1$s is needed, %2$s is free."
 msgstr "Недостатньо місця на диску: потрібно %1$s, вільно %2$s."
 
-#: includes/class-simple-storage-jobs.php:894
+#: includes/class-simple-storage-jobs.php:889
 msgid "All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear."
 msgstr "Усі файли повернулися у WordPress. Якщо сайт працює через Cloudflare чи інший CDN, очистіть його кеш, щоб зникли закешовані переадресації на сховище."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:897
+#: includes/class-simple-storage-jobs.php:892
 #, php-format
 msgid "%d files are still only in the storage, so serving from the storage stays on. Check the errors and run the transfer again."
 msgstr "Файлів, що досі є лише в сховищі: %d, тому віддача зі сховища лишається ввімкненою. Перевірте помилки й запустіть повернення ще раз."
 
-#: includes/class-simple-storage-jobs.php:1002
+#: includes/class-simple-storage-jobs.php:1004
+msgid "The job lock was lost; the work will be done again later."
+msgstr "Блокування задач втрачено; роботу буде виконано пізніше."
+
+#: includes/class-simple-storage-jobs.php:1019
 msgid "Indexing"
 msgstr "Індексування"
 
-#: includes/class-simple-storage-jobs.php:1003
+#: includes/class-simple-storage-jobs.php:1020
 msgid "Transfer to the storage"
 msgstr "Перенесення в сховище"
 
-#: includes/class-simple-storage-jobs.php:1004
+#: includes/class-simple-storage-jobs.php:1021
 msgid "Return from the storage"
 msgstr "Повернення зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1012
+#: includes/class-simple-storage-jobs.php:1029
 msgid "Connection check"
 msgstr "Перевірка з’єднання"
 
-#: includes/class-simple-storage-jobs.php:1013
+#: includes/class-simple-storage-jobs.php:1030
 msgid "Finding media folders"
 msgstr "Пошук медіатек"
 
-#: includes/class-simple-storage-jobs.php:1014
+#: includes/class-simple-storage-jobs.php:1031
 msgid "Indexing local files"
 msgstr "Індексування локальних файлів"
 
-#: includes/class-simple-storage-jobs.php:1015
+#: includes/class-simple-storage-jobs.php:1032
 msgid "Updating the index"
 msgstr "Оновлення індексу"
 
-#: includes/class-simple-storage-jobs.php:1016
+#: includes/class-simple-storage-jobs.php:1033
 msgid "Finding folders in the storage"
 msgstr "Пошук тек у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1017
+#: includes/class-simple-storage-jobs.php:1034
 msgid "Indexing files in the storage"
 msgstr "Індексування файлів у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1018
+#: includes/class-simple-storage-jobs.php:1035
 msgid "Reconciling the index"
 msgstr "Звірка індексу"
 
-#: includes/class-simple-storage-jobs.php:1019
+#: includes/class-simple-storage-jobs.php:1036
 msgid "Copying to the storage"
 msgstr "Копіювання в сховище"
 
-#: includes/class-simple-storage-jobs.php:1020
+#: includes/class-simple-storage-jobs.php:1037
 msgid "Verifying copies"
 msgstr "Перевірка копій"
 
-#: includes/class-simple-storage-jobs.php:1021
+#: includes/class-simple-storage-jobs.php:1038
 msgid "Enabling serving from the storage"
 msgstr "Увімкнення віддачі зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1022
+#: includes/class-simple-storage-jobs.php:1039
 msgid "Checking serving from the storage"
 msgstr "Перевірка віддачі зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1023
+#: includes/class-simple-storage-jobs.php:1040
 msgid "Deleting local copies"
 msgstr "Видалення локальних копій"
 
-#: includes/class-simple-storage-jobs.php:1024
-#: includes/class-simple-storage-jobs.php:1028
+#: includes/class-simple-storage-jobs.php:1041
+#: includes/class-simple-storage-jobs.php:1045
 msgid "Finishing"
 msgstr "Завершення"
 
-#: includes/class-simple-storage-jobs.php:1025
+#: includes/class-simple-storage-jobs.php:1042
 msgid "Downloading to WordPress"
 msgstr "Завантаження у WordPress"
 
-#: includes/class-simple-storage-jobs.php:1026
+#: includes/class-simple-storage-jobs.php:1043
 msgid "Deleting copies in the storage"
 msgstr "Видалення копій у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1027
+#: includes/class-simple-storage-jobs.php:1044
 msgid "Removing empty storage folders"
 msgstr "Видалення порожніх тек у сховищі"
 
@@ -602,22 +607,28 @@ msgid "%s was brought back from the storage to be processed locally."
 msgstr "%s повернуто зі сховища для обробки на сайті."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:1192
+#: includes/class-simple-storage-media.php:1197
 #, php-format
 msgid "Could not delete %s from the storage; delete it manually."
 msgstr "Не вдалося видалити %s зі сховища — видаліть його вручну."
 
-#: includes/class-simple-storage-plugin.php:52
+#: includes/class-simple-storage-plugin.php:53
 msgid "Simple Storage supports single-site WordPress installations only and does nothing on this network."
 msgstr "Simple Storage працює лише на звичайних встановленнях WordPress і в цій мережі нічого не робить."
 
-#: includes/class-simple-storage-plugin.php:65
+#: includes/class-simple-storage-plugin.php:66
 msgid "Simple Storage supports single-site WordPress installations only and was not activated."
 msgstr "Simple Storage працює лише на звичайних встановленнях WordPress, тому його не активовано."
 
-#: includes/class-simple-storage-plugin.php:66
+#: includes/class-simple-storage-plugin.php:67
 msgid "Plugin activation refused"
 msgstr "Активацію плагіна відхилено"
+
+#. translators: %s: folder path.
+#: includes/class-simple-storage-prune.php:224
+#, php-format
+msgid "Removed the empty folder %s from the storage."
+msgstr "Порожню теку %s видалено зі сховища."
 
 #: includes/class-simple-storage-tester.php:47
 msgid "Authorization"
@@ -675,63 +686,63 @@ msgstr "Завантажений файл відрізняється від на
 msgid "Public download"
 msgstr "Завантаження за публічною адресою"
 
-#: includes/class-simple-storage-transfer.php:60
+#: includes/class-simple-storage-transfer.php:67
 msgid "The uploaded file has a different size in the storage."
 msgstr "Надісланий файл має в сховищі інший розмір."
 
-#: includes/class-simple-storage-transfer.php:110
+#: includes/class-simple-storage-transfer.php:117
 msgid "The remote copy is missing or has a different size; it will be uploaded again."
 msgstr "Копії в сховищі немає або вона іншого розміру — файл буде надіслано знову."
 
 #. translators: %d: HTTP status code.
-#: includes/class-simple-storage-transfer.php:122
+#: includes/class-simple-storage-transfer.php:129
 #, php-format
 msgid "The public address answered %d. Check public access in the storage panel."
 msgstr "Публічна адреса відповіла %d. Перевірте публічний доступ у панелі сховища."
 
-#: includes/class-simple-storage-transfer.php:134
+#: includes/class-simple-storage-transfer.php:141
 msgid "The downloaded copy differs from the local file; it will be uploaded again."
 msgstr "Завантажена копія відрізняється від локального файлу — файл буде надіслано знову."
 
-#: includes/class-simple-storage-transfer.php:177
+#: includes/class-simple-storage-transfer.php:184
 msgid "The file changed after verification and was kept; it will be uploaded again."
 msgstr "Файл змінився після перевірки, тому його збережено — його буде надіслано знову."
 
-#: includes/class-simple-storage-transfer.php:194
+#: includes/class-simple-storage-transfer.php:201
 msgid "The copy in the storage is missing or differs, so the local file was kept; it will be uploaded again."
 msgstr "Копії в сховищі немає або вона відрізняється, тому локальний файл збережено — його буде надіслано знову."
 
-#: includes/class-simple-storage-transfer.php:199
+#: includes/class-simple-storage-transfer.php:206
 msgid "The local file could not be deleted."
 msgstr "Не вдалося видалити локальний файл."
 
-#: includes/class-simple-storage-transfer.php:227
+#: includes/class-simple-storage-transfer.php:234
 msgid "A different local file already exists at this path; it was kept and the remote copy was not downloaded."
 msgstr "За цим шляхом уже є інший локальний файл — його збережено, а копію зі сховища не завантажено."
 
-#: includes/class-simple-storage-transfer.php:236
+#: includes/class-simple-storage-transfer.php:243
 msgid "The local folder could not be created."
 msgstr "Не вдалося створити локальну теку."
 
 #. translators: %d: HTTP status code.
-#: includes/class-simple-storage-transfer.php:247
+#: includes/class-simple-storage-transfer.php:254
 #, php-format
 msgid "The public address answered %d."
 msgstr "Публічна адреса відповіла %d."
 
-#: includes/class-simple-storage-transfer.php:249
+#: includes/class-simple-storage-transfer.php:256
 msgid "The downloaded file does not match the recorded size or checksum."
 msgstr "Завантажений файл не збігається із записаним розміром чи контрольною сумою."
 
-#: includes/class-simple-storage-transfer.php:255
+#: includes/class-simple-storage-transfer.php:262
 msgid "The downloaded file could not be moved into place."
 msgstr "Не вдалося перемістити завантажений файл на місце."
 
-#: includes/class-simple-storage-transfer.php:286
+#: includes/class-simple-storage-transfer.php:293
 msgid "The local copy is missing, so the remote copy was kept."
 msgstr "Локальної копії немає, тому копію в сховищі збережено."
 
-#: includes/class-simple-storage-transfer.php:292
+#: includes/class-simple-storage-transfer.php:299
 msgid "The local file does not match the remote copy, so the remote copy was kept."
 msgstr "Локальний файл не збігається з копією в сховищі, тому її збережено."
 

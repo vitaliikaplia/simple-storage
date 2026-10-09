@@ -47,6 +47,13 @@ final class Simple_Storage_Transfer {
 			return self::fail( $row, $dir );
 		}
 
+		// Every upload runs under the job lock, which keeps folder removal out (Simple_Storage_Prune):
+		// one whose lock lapsed meanwhile and went to another request must not write.
+		Simple_Storage_Jobs::heartbeat();
+		if ( ! Simple_Storage_Jobs::holds_lock( 60 ) ) {
+			return self::fail( $row, Simple_Storage_Jobs::lock_lost() );
+		}
+
 		$uploaded = $client->upload( $remote, $local, true );
 		if ( is_wp_error( $uploaded ) ) {
 			return self::fail( $row, $uploaded );

@@ -269,11 +269,13 @@ final class Simple_Storage_Client {
 	}
 
 	/**
-	 * Directory listing. A missing directory is reported with the error code simple_storage_not_found.
+	 * Directory listing. A missing directory is reported with the error code simple_storage_not_found
+	 * (the storage itself may also list it as empty). Strict: only a listing in a recognised format
+	 * counts, see parse_listing().
 	 *
 	 * @return array<int, array{path: string, size: int, directory: bool, uri: string}>|WP_Error
 	 */
-	public function list_dir( string $path, bool $recursive = false ) {
+	public function list_dir( string $path, bool $recursive = false, bool $strict = false ) {
 		$response = $this->call(
 			'GET',
 			'directory',
@@ -294,16 +296,26 @@ final class Simple_Storage_Client {
 			return $this->error_from( $response );
 		}
 
-		return self::parse_listing( $response['body'] );
+		return self::parse_listing( $response['body'], $strict );
 	}
 
 	/**
 	 * Accepts a JSON array, an object with the list in "data" (or "data.items") and the line-per-item
 	 * iterator format, since the documentation does not show the envelope.
 	 *
+	 * Strict mode is for decisions an empty listing could make destructive (deleting a folder):
+	 * only a JSON list in one of those envelopes (or the line format), of items that all have a
+	 * path and a real directory flag, counts. Anything else is an error rather than "empty": an
+	 * empty body, an object without the list, a list that is an object ({}), an error envelope.
+	 *
 	 * @return array<int, array{path: string, size: int, directory: bool, uri: string}>|WP_Error
 	 */
-	public static function parse_listing( string $body ) {
+	public static function parse_listing( string $body, bool $strict = false ) {
+		$bad = new WP_Error( 'simple_storage_bad_listing', __( 'The storage returned a directory listing that cannot be read.', 'simple-storage' ) );
+		if ( $strict && ! self::known_envelope( $body ) ) {
+			return $bad;
+		}
+
 		$json = json_decode( $body, true );
 		if ( is_array( $json ) ) {
 			if ( isset( $json['data'] ) && is_array( $json['data'] ) ) {
@@ -319,7 +331,7 @@ final class Simple_Storage_Client {
 				}
 				$item = json_decode( $line, true );
 				if ( ! is_array( $item ) ) {
-					return new WP_Error( 'simple_storage_bad_listing', __( 'The storage returned a directory listing that cannot be read.', 'simple-storage' ) );
+					return $bad;
 				}
 				$items[] = $item;
 			}
@@ -327,8 +339,14 @@ final class Simple_Storage_Client {
 
 		$list = array();
 		foreach ( $items as $item ) {
-			if ( ! is_array( $item ) || ! isset( $item['path'] ) ) {
+			if ( ! is_array( $item ) || ! isset( $item['path'] ) || ! is_scalar( $item['path'] ) || '' === (string) $item['path'] ) {
+				if ( $strict ) {
+					return $bad;
+				}
 				continue;
+			}
+			if ( $strict && ! in_array( $item['isDirectory'] ?? false, array( true, false, 0, 1 ), true ) ) {
+				return $bad;
 			}
 			$list[] = array(
 				'path'      => '/' . ltrim( (string) $item['path'], '/' ),
@@ -341,21 +359,62 @@ final class Simple_Storage_Client {
 		return $list;
 	}
 
+	/**
+	 * Whether a listing body is a known envelope with the list really in it: a JSON array at the
+	 * top, in "data" or in "data.items", never an object (decoded as arrays, {} and [] look alike),
+	 * and no error; or the line-per-item format.
+	 */
+	private static function known_envelope( string $body ): bool {
+		$decoded = json_decode( $body );
+		if ( JSON_ERROR_NONE !== json_last_error() ) {
+			return '' !== trim( $body );
+		}
+		if ( is_array( $decoded ) ) {
+			return true;
+		}
+		if ( ! is_object( $decoded ) || isset( $decoded->error ) ) {
+			return false;
+		}
+		if ( isset( $decoded->status ) && ! in_array( $decoded->status, array( true, 1, '1', 'success', 'ok' ), true ) ) {
+			return false;
+		}
+
+		return isset( $decoded->data ) && ( is_array( $decoded->data ) || ( is_object( $decoded->data ) && isset( $decoded->data->items ) && is_array( $decoded->data->items ) ) );
+	}
+
 	/** Delete a file; a missing file counts as deleted. @return bool|WP_Error */
 	public function delete_file( string $path ) {
 		return $this->delete( 'file', $path );
 	}
 
-	/** Delete a directory with everything in it; a missing one counts as deleted. @return bool|WP_Error */
-	public function delete_dir( string $path ) {
-		unset( $this->known_dirs[ $path ] );
+	/**
+	 * Delete a directory with everything in it; a missing one counts as deleted.
+	 *
+	 * @param bool $once One request, no retry or token refresh: the caller must know how long it
+	 *                   can take (removing an empty folder while the job lock still holds).
+	 * @return bool|WP_Error
+	 */
+	public function delete_dir( string $path, bool $once = false ) {
+		// Its subdirectories go with it: an upload into one must create it again.
+		foreach ( array_keys( $this->known_dirs ) as $known ) {
+			if ( $known === $path || str_starts_with( $known, $path . '/' ) ) {
+				unset( $this->known_dirs[ $known ] );
+			}
+		}
 
-		return $this->delete( 'directory', $path );
+		return $this->delete( 'directory', $path, $once );
 	}
 
 	/** @return bool|WP_Error */
-	private function delete( string $endpoint, string $path ) {
-		$response = $this->call( 'DELETE', $endpoint, array( 'query' => array( 'path' => $path ) ) );
+	private function delete( string $endpoint, string $path, bool $once = false ) {
+		$response = $this->call(
+			'DELETE',
+			$endpoint,
+			array(
+				'query' => array( 'path' => $path ),
+				'once'  => $once,
+			)
+		);
 		if ( is_wp_error( $response ) ) {
 			return $response;
 		}
@@ -453,6 +512,7 @@ final class Simple_Storage_Client {
 	 */
 	private function call( string $method, string $endpoint, array $args = array() ) {
 		$auth      = $args['auth'] ?? true;
+		$once      = ! empty( $args['once'] );
 		$refreshed = false;
 		$attempt   = 0;
 
@@ -469,14 +529,18 @@ final class Simple_Storage_Client {
 			++$attempt;
 
 			if ( is_wp_error( $response ) ) {
-				if ( 'simple_storage_http' === $response->get_error_code() && $attempt < self::MAX_RETRIES && self::backoff( $attempt ) ) {
+				if ( ! $once && 'simple_storage_http' === $response->get_error_code() && $attempt < self::MAX_RETRIES && self::backoff( $attempt ) ) {
 					continue;
 				}
 
 				return $response;
 			}
 
-			if ( $auth && 401 === $response['status'] && ! $refreshed ) {
+			if ( $auth && 401 === $response['status'] && $once ) {
+				// The next request authenticates again; this one does not wait for it.
+				$this->token = null;
+				self::forget_token();
+			} elseif ( $auth && 401 === $response['status'] && ! $refreshed ) {
 				$refreshed   = true;
 				$this->token = null;
 				$token       = $this->authenticate( true );
@@ -486,7 +550,7 @@ final class Simple_Storage_Client {
 				continue;
 			}
 
-			if ( in_array( $response['status'], array( 429, 502, 503 ), true ) && $attempt < self::MAX_RETRIES ) {
+			if ( ! $once && in_array( $response['status'], array( 429, 502, 503 ), true ) && $attempt < self::MAX_RETRIES ) {
 				$wait = isset( $response['headers']['retry-after'] ) ? min( 10, max( 1, (int) $response['headers']['retry-after'] ) ) : 0;
 				if ( self::backoff( $attempt, $wait ) ) {
 					continue;

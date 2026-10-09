@@ -11,7 +11,11 @@
  * Environment: FAKE_STORAGE_ROOT (files), FAKE_STORAGE_LOGIN / FAKE_STORAGE_PASSWORD (default
  * test / test), FAKE_STORAGE_PUBLIC=0 to switch public access off. Faults for tests live in
  * {root}/.fake/faults.json: {"corrupt": "<regex>", "fail": "<regex>"} — matching uploads are
- * stored truncated or answered with 503.
+ * stored truncated or answered with 503; "odd_listing", "list_fail", "list_404" — listings of
+ * matching directories come back in an unknown envelope, with 500 or with 404; "rmdir_fail" —
+ * deleting a matching directory is answered with 503.
+ *
+ * As the real storage does, a listing of a missing directory is an empty list, not a 404.
  */
 
 // A test helper for the PHP built-in server only; never act as a web-reachable script.
@@ -235,8 +239,18 @@ if ( 'directory' === $endpoint ) {
 		if ( '/' === ( $_GET['path'] ?? '' ) ) {
 			$dir = $root;
 		}
-		if ( ! is_dir( $dir ) ) {
+		$faults = faults( $meta );
+		if ( ! empty( $faults['list_fail'] ) && preg_match( '#' . $faults['list_fail'] . '#', (string) $_GET['path'] ) ) {
+			fail( 500, 'Internal error' );
+		}
+		if ( ! empty( $faults['list_404'] ) && preg_match( '#' . $faults['list_404'] . '#', (string) $_GET['path'] ) ) {
 			fail( 404, 'Not found' );
+		}
+		if ( ! empty( $faults['odd_listing'] ) && preg_match( '#' . $faults['odd_listing'] . '#', (string) $_GET['path'] ) ) {
+			respond( 200, array( 'status' => 'success' ) );
+		}
+		if ( ! is_dir( $dir ) ) {
+			respond( 200, array( 'status' => true, 'data' => array() ) );
 		}
 		respond( 200, array( 'status' => 'success', 'data' => walk( $root, $dir, '1' === ( $_GET['recursive'] ?? '0' ), $public ) ) );
 	}
@@ -253,7 +267,11 @@ if ( 'directory' === $endpoint ) {
 		respond( 200, array( 'status' => 'success' ) );
 	}
 	if ( 'DELETE' === $method ) {
-		$dir = local_path( $root, (string) ( $_GET['path'] ?? '' ) );
+		$dir    = local_path( $root, (string) ( $_GET['path'] ?? '' ) );
+		$faults = faults( $meta );
+		if ( ! empty( $faults['rmdir_fail'] ) && preg_match( '#' . $faults['rmdir_fail'] . '#', (string) $_GET['path'] ) ) {
+			fail( 503, 'Service unavailable' );
+		}
 		if ( $dir === $root || ! is_dir( $dir ) ) {
 			fail( 404, 'Not found' );
 		}

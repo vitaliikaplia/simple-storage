@@ -11,7 +11,8 @@
  *   on a page view, a file a theme announced with simple_storage_queue_offload(). Exactly these
  *   paths, and only those that exist. Their local copies go with the folder's scheduled run once
  *   they have settled, since an optimizer may still be rewriting them;
- * - due events of the plugin (offload of a folder, a retried remote deletion, a Timber size) run
+ * - due events of the plugin (offload of a folder, a retried remote deletion, a Timber size, the
+ *   removal of storage folders left empty) run
  *   when WP-Cron is off, or when it has let them wait well past their time.
  * Scheduled events stay the record of pending work, so a site with a working WP-Cron behaves as
  * before, and nothing is lost when a run is cut short.
@@ -259,7 +260,7 @@ final class Simple_Storage_Runner {
 	 * @return array<int, array{time: int, hook: string, args: array<int, mixed>}>
 	 */
 	public static function due_events( bool $cron_disabled, ?array $cron = null ): array {
-		$hooks = array( Simple_Storage_Media::OFFLOAD_HOOK, Simple_Storage_Media::DELETE_HOOK, Simple_Storage_Timber::GENERATE_HOOK );
+		$hooks = array( Simple_Storage_Media::OFFLOAD_HOOK, Simple_Storage_Media::DELETE_HOOK, Simple_Storage_Timber::GENERATE_HOOK, Simple_Storage_Prune::HOOK );
 		$limit = $cron_disabled ? time() : time() - self::GRACE;
 		$due   = array();
 

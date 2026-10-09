@@ -125,6 +125,13 @@ function ss_remote( string $relative ): string {
 	return $GLOBALS['ss_test']['fake_root'] . '/' . $GLOBALS['ss_test']['prefix'] . '/' . $relative;
 }
 
+/** Whether a folder exists in the storage; the fake storage changes it from another process. */
+function ss_remote_dir( string $relative ): bool {
+	clearstatcache();
+
+	return is_dir( ss_remote( $relative ) );
+}
+
 /** Move settled files of a folder out the way the automatic offload does, after aging them. */
 function ss_offload( string $dir, array $paths ): void {
 	foreach ( $paths as $path ) {
@@ -199,6 +206,11 @@ try {
 	ss_check( is_array( $ss_listing ) && '/a/b.jpg' === $ss_listing[0]['path'], 'listing with data envelope' );
 	$ss_listing = Simple_Storage_Client::parse_listing( "{\"path\":\"/a/1.jpg\",\"size\":1}\n{\"path\":\"/a/2.jpg\",\"size\":2}\n" );
 	ss_check( is_array( $ss_listing ) && 2 === count( $ss_listing ), 'listing in iterator format' );
+	ss_check( array() === Simple_Storage_Client::parse_listing( '{"status":true,"data":[]}', true ) && array() === Simple_Storage_Client::parse_listing( '{"data":{"items":[]}}', true ) && array() === Simple_Storage_Client::parse_listing( '[]', true ), "a strict listing accepts the storage's empty folder" );
+	ss_check( 1 === count( (array) Simple_Storage_Client::parse_listing( '{"status":true,"data":[{"path":"/a/b","isDirectory":true}]}', true ) ), 'and a real one' );
+	foreach ( array( '', '{"status":"success"}', '{"data":null}', '{"data":{"list":[{"path":"/a/b.jpg"}]}}', '{"status":"error","data":[]}', '{"data":[{"size":1}]}', '{"path":"/a/b.jpg"}', '{}', '{"data":{}}', '{"status":true,"data":{}}', '{"data":{"items":{}}}', '{"error":"x","data":[]}', '{"data":[{"path":"/a/b","isDirectory":"false"}]}' ) as $ss_body ) {
+		ss_check( is_wp_error( Simple_Storage_Client::parse_listing( $ss_body, true ) ), 'a strict listing refuses: ' . ( '' === $ss_body ? 'an empty body' : $ss_body ) );
+	}
 	ss_check( '2024/05/Фото тест.png' === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/%D0%A4%D0%BE%D1%82%D0%BE%20%D1%82%D0%B5%D1%81%D1%82.png?x=1', '/wp-content/uploads' ), 'proxy maps a request to a media path' );
 	ss_check( null === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/../../wp-config.php', '/wp-content/uploads' ), 'proxy refuses traversal' );
 	ss_check( null === Simple_Storage_Proxy::relative_from_request( '/wp-content/plugins/simple-storage/proxy.php', '/wp-content/uploads' ), 'proxy refuses its own address' );
@@ -223,6 +235,7 @@ try {
 	Simple_Storage_Settings::flush_cache();
 	Simple_Storage_Paths::reset();
 	Simple_Storage_Media::init();
+	Simple_Storage_Prune::init();
 	Simple_Storage_Timber::init();
 	ss_check( Simple_Storage_Settings::is_configured(), 'connection configured' );
 	ss_check( str_starts_with( (string) Simple_Storage_Settings::get()['password'], 'ss1:' ), 'password stored encrypted' );
@@ -257,7 +270,7 @@ try {
 	ss_section( 'Connection test' );
 	$ss_report = Simple_Storage_Tester::run();
 	ss_check( $ss_report['ok'], 'connection test passes', $ss_report['steps'] );
-	ss_check( ! is_dir( $ss_fake_root . '/' . $ss_prefix . '/' . Simple_Storage_Tester::TEST_DIR ), 'test folder removed' );
+	ss_check( ! is_dir( $ss_fake_root . '/' . $ss_prefix . '/' . Simple_Storage_Tester::TEST_DIR ) && is_dir( $ss_fake_root . '/' . $ss_prefix ), 'test folder removed, the site folder stays' );
 	$ss_token = get_option( 'simple_storage_token' );
 	ss_check( is_array( $ss_token ) && str_starts_with( (string) ( $ss_token['token'] ?? '' ), 'ss1:' ) && hash_hmac( 'sha256', $ss_fake_url . "\ntest\ntest", wp_salt( 'auth' ) ) === ( $ss_token['key'] ?? '' ), 'cached token encrypted and keyed with the salts, not a plain hash of the password' );
 
@@ -664,6 +677,8 @@ try {
 	wp_schedule_single_event( time() - 5, Simple_Storage_Media::DELETE_HOOK, array( '2025/01/orphan.bin', 1 ) );
 	Simple_Storage_Runner::run( true, 0.0 );
 	ss_check( ! file_exists( ss_remote( '2025/01/orphan.bin' ) ) && false === wp_next_scheduled( Simple_Storage_Media::DELETE_HOOK, array( '2025/01/orphan.bin', 1 ) ), 'a retried remote deletion runs without WP-Cron' );
+	ss_check( false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2025/01' ) ), 'and schedules its folder for pruning' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
 	// A file brought back is held while the request works with it, and a while after.
 	$ss_hold_left = static fn(): int => (int) get_option( '_transient_timeout_simple_storage_hold_' . md5( '2025/01/late.bin' ) ) - time();
 	Simple_Storage_Media::release_hold( '2025/01/late.bin' );
@@ -843,6 +858,257 @@ try {
 	wp_delete_attachment( $ss_edit, true );
 	foreach ( array( '2024/05/edit-me.jpg', '2024/05/edit-me-150x150.jpg' ) as $ss_path ) {
 		unset( $ss_expected[ $ss_path ] );
+	}
+
+	ss_section( 'Empty storage folders' );
+	$ss_faults   = $ss_fake_root . '/.fake/faults.json';
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	// An attachment alone in its month and year: deleting it leaves both empty.
+	ss_image( $ss_uploads . '/2023/02/lonely.jpg', 320, 240, 'jpg' );
+	$ss_lonely = wp_insert_attachment(
+		array(
+			'post_mime_type' => 'image/jpeg',
+			'post_title'     => 'Simple Storage lonely',
+			'post_status'    => 'inherit',
+		),
+		$ss_uploads . '/2023/02/lonely.jpg'
+	);
+	wp_update_attachment_metadata( $ss_lonely, wp_generate_attachment_metadata( $ss_lonely, $ss_uploads . '/2023/02/lonely.jpg' ) );
+	$ss_lonely_files = Simple_Storage_Media::attachment_files( $ss_lonely );
+	ss_offload( '2023/02', $ss_lonely_files );
+	ss_check( count( $ss_lonely_files ) === count( array_filter( $ss_lonely_files, 'ss_remote_only' ) ), 'an attachment alone in its month lives only in the storage', $ss_lonely_files );
+	wp_delete_attachment( $ss_lonely, true );
+	ss_check( false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/02' ) ) && ss_remote_dir( '2023/02' ), 'deleting its files schedules its month for pruning' );
+	do_action( Simple_Storage_Prune::HOOK, '2023/02' );
+	ss_check( ! ss_remote_dir( '2023/02' ) && ! ss_remote_dir( '2023' ) && ss_remote_dir( '' ), 'the empty month and year are removed, the site folder stays' );
+	ss_check( ss_remote_dir( '2024/05' ) && ss_remote_dir( '2025/01' ), 'folders that still hold files are never touched' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	// A subfolder emptied by a deletion goes with its empty subfolders; the month with a file stays.
+	ss_write( $ss_uploads . '/2023/03/keep.bin', random_bytes( 300 ) );
+	ss_write( $ss_uploads . '/2023/03/sub/deep/only.bin', random_bytes( 300 ) );
+	ss_offload( '2023/03', array( '2023/03/keep.bin', '2023/03/sub/deep/only.bin' ) );
+	// A file the index does not know (put there by hand): the listing alone keeps the month.
+	file_put_contents( ss_remote( '2023/03/by-hand.bin' ), 'kept' );
+	wp_delete_file( $ss_uploads . '/2023/03/sub/deep/only.bin' );
+	ss_check( ! file_exists( ss_remote( '2023/03/sub/deep/only.bin' ) ) && false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/03' ) ), 'wp_delete_file() of a stored file schedules its month too' );
+	do_action( Simple_Storage_Prune::HOOK, '2023/03' );
+	ss_check( ! ss_remote_dir( '2023/03/sub' ) && is_file( ss_remote( '2023/03/keep.bin' ) ) && is_file( ss_remote( '2023/03/by-hand.bin' ) ), 'an emptied subfolder is removed, the month that still holds files stays' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	// A year that still holds another month (here only files the index does not know) stays.
+	wp_mkdir_p( ss_remote( '2022/01' ) );
+	wp_mkdir_p( ss_remote( '2022/09' ) );
+	file_put_contents( ss_remote( '2022/09/by-hand.bin' ), 'kept' );
+	do_action( Simple_Storage_Prune::HOOK, '2022/01' );
+	ss_check( ! ss_remote_dir( '2022/01' ) && is_file( ss_remote( '2022/09/by-hand.bin' ) ), 'the emptied month goes, its year with another month stays' );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '2022' ) ) );
+
+	// Without WP-Cron the run happens at the end of a request, like the plugin's other events.
+	wp_mkdir_p( ss_remote( '2023/09' ) );
+	wp_schedule_single_event( time() - 5, Simple_Storage_Prune::HOOK, array( '2023/09' ) );
+	Simple_Storage_Runner::run( true, 0.0 );
+	ss_check( ! ss_remote_dir( '2023/09' ) && false === wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/09' ) ), 'a due pruning runs without WP-Cron' );
+
+	// Never alongside a job, even a paused one.
+	wp_mkdir_p( ss_remote( '2023/10' ) );
+	update_option(
+		Simple_Storage_Jobs::OPTION,
+		array(
+			'id'     => 'ss-test-paused',
+			'type'   => 'index',
+			'status' => 'paused',
+		),
+		false
+	);
+	do_action( Simple_Storage_Prune::HOOK, '2023/10' );
+	$ss_next = wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/10' ) );
+	delete_option( Simple_Storage_Jobs::OPTION );
+	ss_check( ss_remote_dir( '2023/10' ) && false !== $ss_next && $ss_next > time() + 4 * MINUTE_IN_SECONDS, 'while a job exists, even paused, the run waits' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	do_action( Simple_Storage_Prune::HOOK, '2023/10' );
+
+	// The index knows a stored file the listing does not show (yet): the folder stays.
+	wp_mkdir_p( ss_remote( '2023/04' ) );
+	Simple_Storage_Index::upsert_remote( array( array( 'path' => '2023/04/listed-late.jpg', 'size' => 10 ) ), 999999 );
+	do_action( Simple_Storage_Prune::HOOK, '2023/04' );
+	ss_check( ss_remote_dir( '2023/04' ), 'a folder the index still knows a stored file in stays, whatever the listing says' );
+	Simple_Storage_Index::delete_path( '2023/04/listed-late.jpg' );
+
+	// A listing in an unknown format never counts as empty.
+	wp_mkdir_p( ss_remote( '2023/05' ) );
+	file_put_contents( ss_remote( '2023/05/unindexed.bin' ), 'kept' );
+	file_put_contents( $ss_faults, wp_json_encode( array( 'odd_listing' => '/2023/05$' ) ) );
+	do_action( Simple_Storage_Prune::HOOK, '2023/05' );
+	ss_check( is_file( ss_remote( '2023/05/unindexed.bin' ) ), 'a listing in an unknown format never counts as empty' );
+	// A listing that is no answer at all ("not found", although the storage lists a missing folder
+	// as empty) is no reason to delete anything either.
+	file_put_contents( $ss_faults, wp_json_encode( array( 'list_404' => '/2023/05$' ) ) );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	do_action( Simple_Storage_Prune::HOOK, '2023/05' );
+	clearstatcache();
+	ss_check( is_file( ss_remote( '2023/05/unindexed.bin' ) ), 'a listing answered "not found" never counts as empty' );
+	// A listing error leaves the folder and tries again later, a few times.
+	file_put_contents( $ss_faults, wp_json_encode( array( 'list_fail' => '/2023/05$' ) ) );
+	do_action( Simple_Storage_Prune::HOOK, '2023/05' );
+	clearstatcache();
+	$ss_next = wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/05', 1 ) );
+	ss_check( is_file( ss_remote( '2023/05/unindexed.bin' ) ) && false !== $ss_next && $ss_next > time() + 10 * MINUTE_IN_SECONDS, 'a listing error leaves the folder and tries again later', $ss_next );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	do_action( Simple_Storage_Prune::HOOK, '2023/05', 3 );
+	ss_check( false === wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/05', 4 ) ), 'and gives up after the last try' );
+	// A folder the storage refuses to delete stays; the request is sent once, without waiting for retries.
+	wp_mkdir_p( ss_remote( '2023/12' ) );
+	file_put_contents( $ss_faults, wp_json_encode( array( 'rmdir_fail' => '/2023/12$' ) ) );
+	$ss_started = microtime( true );
+	do_action( Simple_Storage_Prune::HOOK, '2023/12' );
+	$ss_took = microtime( true ) - $ss_started;
+	ss_check( ss_remote_dir( '2023/12' ) && false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/12', 1 ) ), 'a folder the storage refuses to delete stays and is tried again later' );
+	ss_check( $ss_took < 2.0, 'the deletion is sent once, without retries that could outlast the lock', round( $ss_took, 2 ) );
+	unlink( $ss_faults );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	do_action( Simple_Storage_Prune::HOOK, '2023/12' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	// A year listing in an unknown format keeps the year with its other months.
+	wp_mkdir_p( ss_remote( '2021/01' ) );
+	wp_mkdir_p( ss_remote( '2021/02' ) );
+	file_put_contents( ss_remote( '2021/02/by-hand.bin' ), 'kept' );
+	file_put_contents( $ss_faults, wp_json_encode( array( 'odd_listing' => '/2021$' ) ) );
+	do_action( Simple_Storage_Prune::HOOK, '2021/01' );
+	unlink( $ss_faults );
+	clearstatcache();
+	ss_check( ! ss_remote_dir( '2021/01' ) && is_file( ss_remote( '2021/02/by-hand.bin' ) ), 'a year listing in an unknown format keeps the year' );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '2021' ) ) );
+
+	// In a month with files, each subfolder is judged on its own.
+	ss_write( $ss_uploads . '/2023/11/keep.bin', random_bytes( 200 ) );
+	ss_offload( '2023/11', array( '2023/11/keep.bin' ) );
+	wp_mkdir_p( ss_remote( '2023/11/a' ) );
+	wp_mkdir_p( ss_remote( '2023/11/b' ) );
+	file_put_contents( ss_remote( '2023/11/b/by-hand.bin' ), 'kept' );
+	wp_mkdir_p( ss_remote( '2023/11/c' ) );
+	Simple_Storage_Index::upsert_remote( array( array( 'path' => '2023/11/c/late.jpg', 'size' => 10 ) ), 999999 );
+	do_action( Simple_Storage_Prune::HOOK, '2023/11' );
+	clearstatcache();
+	ss_check( ! ss_remote_dir( '2023/11/a' ) && is_file( ss_remote( '2023/11/b/by-hand.bin' ) ) && ss_remote_dir( '2023/11/c' ) && is_file( ss_remote( '2023/11/keep.bin' ) ), 'an empty subfolder goes; one with a file, or one the index knows a file in, stays' );
+	Simple_Storage_Index::delete_path( '2023/11/c/late.jpg' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	// Never while the job lock is taken, and never without it.
+	wp_mkdir_p( ss_remote( '2023/06' ) );
+	$ss_lock = Simple_Storage_Jobs::lock();
+	do_action( Simple_Storage_Prune::HOOK, '2023/06' );
+	$ss_next = wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/06' ) );
+	ss_check( ss_remote_dir( '2023/06' ) && false !== $ss_next && $ss_next > time() + 4 * MINUTE_IN_SECONDS, 'while the job lock is taken the run waits' );
+	Simple_Storage_Jobs::unlock( $ss_lock );
+	do_action( Simple_Storage_Prune::HOOK, '2023/06' );
+	ss_check( ! ss_remote_dir( '2023/06' ), 'and removes the folder once the lock is free' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	wp_mkdir_p( ss_remote( '2023/07' ) );
+	$ss_client = Simple_Storage_Client::create();
+	$ss_result = Simple_Storage_Prune::prune_locked( $ss_client, '2023/07' );
+	ss_check( is_wp_error( $ss_result ) && ss_remote_dir( '2023/07' ), 'a folder is never deleted without the job lock', $ss_result );
+	$ss_lock   = Simple_Storage_Jobs::lock();
+	$ss_result = Simple_Storage_Prune::prune_locked( $ss_client, '2023/07' );
+	Simple_Storage_Jobs::unlock( $ss_lock );
+	ss_check( true === $ss_result && ! ss_remote_dir( '2023/07' ), 'with the lock it is', is_wp_error( $ss_result ) ? $ss_result->get_error_message() : $ss_result );
+
+	// A lock that is no longer ours, or about to run out, never covers a deletion.
+	$ss_lock_row = static fn( string $token, int $expires ) => $GLOBALS['wpdb']->update( $GLOBALS['wpdb']->options, array( 'option_value' => maybe_serialize( array( 'token' => $token, 'expires' => $expires ) ) ), array( 'option_name' => 'simple_storage_lock' ) );
+	wp_mkdir_p( ss_remote( '2023/08' ) );
+	$ss_lock = Simple_Storage_Jobs::lock();
+	$ss_lock_row( 'thief', time() + 300 );
+	$ss_result = Simple_Storage_Prune::prune_locked( $ss_client, '2023/08' );
+	ss_check( is_wp_error( $ss_result ) && 'simple_storage_lock_lost' === $ss_result->get_error_code() && ss_remote_dir( '2023/08' ), 'a lock another request took over never covers a deletion' );
+	$ss_lock_row( $ss_lock, time() + 100 );
+	$ss_result = Simple_Storage_Prune::prune_locked( $ss_client, '2023/08' );
+	ss_check( is_wp_error( $ss_result ) && ss_remote_dir( '2023/08' ), 'nor one that runs out before the storage could answer' );
+	( new ReflectionProperty( Simple_Storage_Jobs::class, 'beat' ) )->setValue( null, 0 );
+	$ss_result = Simple_Storage_Prune::prune_locked( $ss_client, '2023/08' );
+	ss_check( true === $ss_result && ! ss_remote_dir( '2023/08' ), 'unless the heartbeat extends it first' );
+	Simple_Storage_Jobs::unlock( $ss_lock );
+	// An upload whose lock went to another request does not write either.
+	ss_write( $ss_uploads . '/2023/08/late-upload.bin', random_bytes( 100 ) );
+	$ss_row    = Simple_Storage_Index::touch_local( '2023/08/late-upload.bin', 100, time() - 600 );
+	$ss_result = Simple_Storage_Transfer::upload( $ss_client, (array) $ss_row );
+	ss_check( is_wp_error( $ss_result ) && ! file_exists( ss_remote( '2023/08/late-upload.bin' ) ), 'an upload without the job lock never writes to the storage' );
+	Simple_Storage_Index::delete_path( '2023/08/late-upload.bin' );
+	@unlink( $ss_uploads . '/2023/08/late-upload.bin' );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '2023/08' ) ) );
+
+	// Never during a regeneration, nor when a job starts while the run takes the lock.
+	wp_mkdir_p( ss_remote( '2023/07' ) );
+	update_option( Simple_Storage_Media::REGENERATING_OPTION, time(), false );
+	do_action( Simple_Storage_Prune::HOOK, '2023/07' );
+	delete_option( Simple_Storage_Media::REGENERATING_OPTION );
+	ss_check( ss_remote_dir( '2023/07' ) && false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/07' ) ), 'while thumbnails are regenerated the run waits' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	$ss_job_starts = static function ( $query ) {
+		if ( str_starts_with( (string) $query, 'INSERT IGNORE' ) && str_contains( (string) $query, 'simple_storage_lock' ) && ! get_option( Simple_Storage_Jobs::OPTION ) ) {
+			update_option(
+				Simple_Storage_Jobs::OPTION,
+				array(
+					'id'     => 'ss-test-started',
+					'type'   => 'index',
+					'status' => 'running',
+				),
+				false
+			);
+		}
+
+		return $query;
+	};
+	add_filter( 'query', $ss_job_starts );
+	do_action( Simple_Storage_Prune::HOOK, '2023/07' );
+	remove_filter( 'query', $ss_job_starts );
+	delete_option( Simple_Storage_Jobs::OPTION );
+	ss_check( ss_remote_dir( '2023/07' ) && false !== wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '2023/07' ) ), 'a job that starts while the run takes the lock makes it wait' );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '2023/07' ) ) );
+
+	// A lock another request took over is not ours any more, and unlocking never removes it.
+	$ss_lock  = Simple_Storage_Jobs::lock();
+	$ss_thief = maybe_serialize(
+		array(
+			'token'   => 'thief',
+			'expires' => time() + 300,
+		)
+	);
+	$ss_steal = static function ( $query ) use ( $ss_thief ) {
+		static $ss_stolen = false;
+		if ( ! $ss_stolen && str_starts_with( (string) $query, 'DELETE' ) && str_contains( (string) $query, 'simple_storage_lock' ) ) {
+			$ss_stolen = true;
+			$GLOBALS['wpdb']->update( $GLOBALS['wpdb']->options, array( 'option_value' => $ss_thief ), array( 'option_name' => 'simple_storage_lock' ) );
+		}
+
+		return $query;
+	};
+	ss_check( Simple_Storage_Jobs::holds_lock( 200 ), 'a fresh lock is ours with time to spare' );
+	add_filter( 'query', $ss_steal );
+	Simple_Storage_Jobs::unlock( $ss_lock );
+	remove_filter( 'query', $ss_steal );
+	ss_check( $ss_thief === $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = %s", 'simple_storage_lock' ) ), "unlocking never removes a lock another request took over meanwhile" );
+	$ss_lock = Simple_Storage_Jobs::lock();
+	ss_check( null === $ss_lock && ! Simple_Storage_Jobs::holds_lock(), "and the other request's lock is not ours" );
+	delete_option( 'simple_storage_lock' );
+
+	// The serving check's probe folder and the site folder are never pruned.
+	wp_mkdir_p( ss_remote( '0000/00' ) );
+	Simple_Storage_Prune::schedule( '0000/00/probe.jpg' );
+	do_action( Simple_Storage_Prune::HOOK, '0000/00' );
+	ss_check( ss_remote_dir( '0000/00' ) && false === wp_next_scheduled( Simple_Storage_Prune::HOOK, array( '0000/00' ) ), "the serving check's probe folder is never pruned" );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '0000' ) ) );
+
+	// A client that deleted a folder creates its subfolders again.
+	$ss_client->ensure_dir( Simple_Storage_Paths::remote( '2029/01' ) );
+	$ss_client->delete_dir( Simple_Storage_Paths::remote( '2029' ) );
+	$ss_client->ensure_dir( Simple_Storage_Paths::remote( '2029/01' ) );
+	ss_check( ss_remote_dir( '2029/01' ), 'a client that deleted a folder creates its subfolders again' );
+	$ss_client->delete_dir( Simple_Storage_Paths::remote( '2029' ) );
+	exec( 'rm -rf ' . escapeshellarg( ss_remote( '2023/04' ) ) . ' ' . escapeshellarg( ss_remote( '2023/05' ) ) . ' ' . escapeshellarg( ss_remote( '2023/11' ) ) );
+	foreach ( array( '2023/03/keep.bin', '2023/11/keep.bin' ) as $ss_path ) {
+		Simple_Storage_Index::delete_path( $ss_path );
 	}
 
 	ss_section( 'Thumbnail regeneration' );
@@ -1235,8 +1501,8 @@ try {
 	}
 	ss_check( is_file( $ss_uploads . '/2024/05/photo.webp' ) && is_file( $ss_uploads . '/2024/05/doc.pdf' ), 'files WordPress does not know returned too' );
 	ss_check( 0 === $ss_stats['remote_only']['files'] && 0 === $ss_stats['both']['files'], 'nothing left in the storage', $ss_stats );
-	$ss_left = is_dir( $ss_fake_root . '/' . $ss_prefix ) ? array_diff( scandir( $ss_fake_root . '/' . $ss_prefix ), array( '.', '..' ) ) : array();
-	ss_check( empty( $ss_left ), 'empty storage folders pruned', array_values( $ss_left ) );
+	$ss_left = ss_remote_dir( '' ) ? array_diff( scandir( $ss_fake_root . '/' . $ss_prefix ), array( '.', '..' ) ) : array( 'the site folder itself is gone' );
+	ss_check( empty( $ss_left ), 'empty storage folders pruned, the site folder stays', array_values( $ss_left ) );
 	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'serving disabled, mode local' );
 	ss_check( ! is_file( $ss_uploads . '/.htaccess' ) && ! is_file( Simple_Storage_Proxy::config_file() ), '.htaccess block and proxy configuration removed' );
 	ss_check( ! glob( $ss_uploads . '/*/*/*' . Simple_Storage_Paths::PART_SUFFIX ), 'no temporary files left' );
@@ -1250,6 +1516,7 @@ try {
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Timber::GENERATE_HOOK );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
 	if ( is_resource( $ss_server ) ) {
 		proc_terminate( $ss_server );
 		proc_close( $ss_server );

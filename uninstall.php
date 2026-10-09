@@ -77,6 +77,7 @@ foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_stor
 wp_unschedule_hook( 'simple_storage_offload_dir' );
 wp_unschedule_hook( 'simple_storage_delete_remote' );
 wp_unschedule_hook( 'simple_storage_timber_resize' );
+wp_unschedule_hook( 'simple_storage_prune_dir' );
 
 unset(
 	$simple_storage_base,
