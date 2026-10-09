@@ -64,7 +64,7 @@ printf 'png' > "$STORAGE_ROOT/$PREFIX/2024/05/Фото тест.png"
 printf 'local' > "$WORK/site/wp-content/uploads/2024/05/local.jpg"
 write_config proxy
 
-"$PHP" -S 127.0.0.1:$SITE_PORT -t "$WORK/site" "$PLUGIN/tests/fake-site/router.php" > "$WORK/site.log" 2>&1 &
+"$PHP" -d opcache.enable=0 -d opcache.enable_cli=0 -S 127.0.0.1:$SITE_PORT -t "$WORK/site" "$PLUGIN/tests/fake-site/router.php" > "$WORK/site.log" 2>&1 &
 SERVER_PID=$!
 sleep 1
 

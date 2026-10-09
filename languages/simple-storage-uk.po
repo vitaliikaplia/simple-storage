@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.2.0\n"
+"Project-Id-Version: Simple Storage 0.3.0\n"
 "Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
 "PO-Revision-Date: 2026-10-09 07:45+0300\n"
 "Last-Translator: Vitalii Kaplia\n"
@@ -383,8 +383,8 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.2.0 is the first working release: indexing of the media folders, transfer to the storage and back with SHA-256 verification, serving through a transparent proxy or directly from the storage with an end-to-end check before local copies are deleted, automatic transfer of new uploads, image editing and thumbnail regeneration (WP-CLI, Regenerate Thumbnails, Timber resizing) for files that live only in the storage, functions for themes, WP-CLI commands, updates from GitHub and a Ukrainian translation."
-msgstr "Версія 0.2.0 — перший робочий випуск: індексування медіатек, перенесення в сховище й назад із перевіркою SHA-256, віддача через прозорий проксі або напряму зі сховища з наскрізною перевіркою перед видаленням локальних копій, автоматичне перенесення нових файлів, редагування зображень і перенарізка мініатюр (WP-CLI, Regenerate Thumbnails, ресайз Timber) для файлів, що лежать лише в сховищі, функції для тем, команди WP-CLI, оновлення з GitHub і українська локалізація."
+msgid "Version 0.3.0 works without WP-Cron: new uploads go to the storage at the end of the upload request, sizes that Timber or a theme cuts on page views follow at the end of that request, and the plugin runs its own delayed work at the end of ordinary requests when WP-Cron is off. Themes can announce files they write with simple_storage_queue_offload()."
+msgstr "Версія 0.3.0 працює без WP-Cron: нові файли їдуть у сховище наприкінці запиту завантаження, нарізки, які Timber чи тема роблять на переглядах сторінок, — наприкінці того запиту, а відкладену роботу плагін виконує сам наприкінці звичайних запитів, коли WP-Cron вимкнено. Теми можуть повідомляти про записані файли через simple_storage_queue_offload()."
 
 #: includes/class-simple-storage-index.php:195
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
@@ -590,32 +590,32 @@ msgid "Removing empty storage folders"
 msgstr "Видалення порожніх тек у сховищі"
 
 #. translators: 1: number of files, 2: folder.
-#: includes/class-simple-storage-media.php:190
+#: includes/class-simple-storage-media.php:210
 #, php-format
 msgid "Automatically moved %1$d new files from %2$s to the storage."
 msgstr "Автоматично перенесено в сховище нових файлів із %2$s: %1$d."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:263
+#: includes/class-simple-storage-media.php:285
 #, php-format
 msgid "%s was brought back from the storage to be processed locally."
 msgstr "%s повернуто зі сховища для обробки на сайті."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:1022
+#: includes/class-simple-storage-media.php:1044
 #, php-format
 msgid "Could not delete %s from the storage; delete it manually."
 msgstr "Не вдалося видалити %s зі сховища — видаліть його вручну."
 
-#: includes/class-simple-storage-plugin.php:51
+#: includes/class-simple-storage-plugin.php:52
 msgid "Simple Storage supports single-site WordPress installations only and does nothing on this network."
 msgstr "Simple Storage працює лише на звичайних встановленнях WordPress і в цій мережі нічого не робить."
 
-#: includes/class-simple-storage-plugin.php:64
+#: includes/class-simple-storage-plugin.php:65
 msgid "Simple Storage supports single-site WordPress installations only and was not activated."
 msgstr "Simple Storage працює лише на звичайних встановленнях WordPress, тому його не активовано."
 
-#: includes/class-simple-storage-plugin.php:65
+#: includes/class-simple-storage-plugin.php:66
 msgid "Plugin activation refused"
 msgstr "Активацію плагіна відхилено"
 

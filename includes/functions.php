@@ -91,6 +91,23 @@ function simple_storage_file_exists( $target ): bool {
 }
 
 /**
+ * Tell the plugin that code has just written a media file (a size cut on a page view, a WebP
+ * copy): it goes to the storage at the end of the request, and with the folder's scheduled run
+ * should that request not get to it. Does nothing unless new files follow into the storage.
+ *
+ * @param string $target Absolute path, uploads URL or uploads-relative path of the new file.
+ */
+function simple_storage_queue_offload( $target ): void {
+	$relative = simple_storage_media_path( (string) $target );
+	if ( null === $relative || ! Simple_Storage_Media::auto_enabled() ) {
+		return;
+	}
+
+	Simple_Storage_Media::schedule( dirname( $relative ) );
+	Simple_Storage_Runner::queue_path( $relative );
+}
+
+/**
  * Timber\ImageHelper::resize() that also works for images living only in the storage: an existing
  * size is used without the original, a missing one is cut in the background.
  *

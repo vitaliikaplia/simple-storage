@@ -167,7 +167,19 @@ final class Simple_Storage_Timber {
 	public static function prepare_destination( $path ) {
 		$source_url       = self::$source_url;
 		self::$source_url = null;
-		if ( ! is_string( $path ) || null === $source_url || is_file( $path ) || ! self::has_remote() ) {
+		if ( ! is_string( $path ) || null === $source_url || is_file( $path ) ) {
+			return $path;
+		}
+
+		// Timber is about to cut this file on a page view: it goes to the storage at the end of
+		// the request (and with the folder's scheduled run, should that request not get to it).
+		$written = Simple_Storage_Paths::relative_from_local( $path );
+		if ( null !== $written && Simple_Storage_Media::auto_enabled() ) {
+			Simple_Storage_Media::schedule( dirname( $written ) );
+			Simple_Storage_Runner::queue_path( $written );
+		}
+
+		if ( ! self::has_remote() ) {
 			return $path;
 		}
 

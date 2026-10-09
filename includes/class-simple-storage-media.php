@@ -100,7 +100,10 @@ final class Simple_Storage_Media {
 		$file = (string) get_post_meta( (int) $attachment_id, '_wp_attached_file', true );
 		$dir  = dirname( $file );
 		if ( Simple_Storage_Paths::is_month_dir( $dir ) ) {
+			// The upload goes out at the end of this request; the event stays for anything that
+			// is not settled by then.
 			self::schedule( $dir );
+			Simple_Storage_Runner::queue_attachment( (int) $attachment_id );
 		}
 	}
 
@@ -116,6 +119,11 @@ final class Simple_Storage_Media {
 	}
 
 	public static function schedule( string $dir, int $delay = self::DELAY ): void {
+		if ( did_action( 'shutdown' ) ) {
+			// Late in a long request the cached schedule is stale; writing it back would drop
+			// events other requests added meanwhile.
+			Simple_Storage_Runner::refresh_cron_cache();
+		}
 		if ( false === wp_next_scheduled( self::OFFLOAD_HOOK, array( $dir ) ) ) {
 			wp_schedule_single_event( time() + $delay, self::OFFLOAD_HOOK, array( $dir ) );
 		}
@@ -123,7 +131,59 @@ final class Simple_Storage_Media {
 
 	/** Cron: move settled local files of one YYYY/MM folder to the storage. */
 	public static function offload_dir( $dir ): void {
-		$dir = (string) $dir;
+		self::offload( (string) $dir, 0.0, null );
+	}
+
+	/**
+	 * At the end of a request: move the files this request wrote — exactly these paths, complete
+	 * by then. Everything else in the folder (files of requests still running, an original brought
+	 * back to cut a size) waits for the folder's scheduled run and its one-minute rule.
+	 *
+	 * @param array<int, string> $paths
+	 */
+	public static function offload_paths_now( string $dir, array $paths, float $request_start ): void {
+		self::offload( $dir, $request_start, $paths );
+	}
+
+	/**
+	 * Files of an attachment saved in this request, with the WebP/AVIF copies themes keep next to
+	 * an image ("photo-jpg.webp").
+	 *
+	 * @return array<int, string>
+	 */
+	public static function upload_files( int $attachment_id ): array {
+		$paths = self::attachment_files( $attachment_id );
+		foreach ( $paths as $relative ) {
+			$extension = pathinfo( $relative, PATHINFO_EXTENSION );
+			if ( '' === $extension ) {
+				continue;
+			}
+			$stem = dirname( $relative ) . '/' . pathinfo( $relative, PATHINFO_FILENAME ) . '-' . strtolower( $extension );
+			foreach ( array( 'webp', 'avif' ) as $format ) {
+				if ( is_file( Simple_Storage_Paths::local( $stem . '.' . $format ) ) ) {
+					$paths[] = $stem . '.' . $format;
+				}
+			}
+		}
+
+		return array_values( array_unique( $paths ) );
+	}
+
+	/** Keep a file brought back from the storage local for a while: others may be using it. */
+	private static function hold( string $relative ): void {
+		set_transient( 'simple_storage_hold_' . md5( $relative ), 1, self::DELAY );
+	}
+
+	public static function release_hold( string $relative ): void {
+		delete_transient( 'simple_storage_hold_' . md5( $relative ) );
+	}
+
+	private static function is_held( string $relative ): bool {
+		return (bool) get_transient( 'simple_storage_hold_' . md5( $relative ) );
+	}
+
+	/** @param array<int, string>|null $only Exact paths written by this request, or null for the folder. */
+	private static function offload( string $dir, float $request_start, ?array $only ): void {
 		if ( ! self::auto_enabled() || ! Simple_Storage_Paths::is_month_dir( $dir ) ) {
 			return;
 		}
@@ -143,13 +203,14 @@ final class Simple_Storage_Media {
 		}
 
 		try {
-			self::offload_locked( $dir );
+			self::offload_locked( $dir, $request_start, $only );
 		} finally {
 			Simple_Storage_Jobs::unlock( $lock );
 		}
 	}
 
-	private static function offload_locked( string $dir ): void {
+	/** @param array<int, string>|null $only */
+	private static function offload_locked( string $dir, float $request_start, ?array $only ): void {
 		$client = Simple_Storage_Client::create();
 		if ( is_wp_error( $client ) ) {
 			Simple_Storage_Log::error( $client->get_error_message() );
@@ -159,11 +220,29 @@ final class Simple_Storage_Media {
 		}
 		$client->set_heartbeat( array( Simple_Storage_Jobs::class, 'heartbeat' ) );
 
+		if ( null === $only ) {
+			$files = Simple_Storage_Jobs::scan_local_dir( $dir );
+		} else {
+			$files = array();
+			foreach ( array_unique( $only ) as $relative ) {
+				$local = Simple_Storage_Paths::local( $relative );
+				clearstatcache( true, $local );
+				if ( dirname( $relative ) === $dir && Simple_Storage_Paths::is_media_path( $relative ) && is_file( $local ) ) {
+					$files[] = array(
+						'path'  => $relative,
+						'size'  => (int) filesize( $local ),
+						'mtime' => (int) filemtime( $local ),
+					);
+				}
+			}
+		}
+
 		$deadline = microtime( true ) + self::BUDGET;
 		$pending  = false;
+		$failed   = false;
 		$moved    = 0;
 		$skip     = self::transient_files( $dir );
-		foreach ( Simple_Storage_Jobs::scan_local_dir( $dir ) as $file ) {
+		foreach ( $files as $file ) {
 			if ( isset( $skip[ $file['path'] ] ) ) {
 				continue;
 			}
@@ -171,7 +250,18 @@ final class Simple_Storage_Media {
 				$pending = true;
 				break;
 			}
-			if ( $file['mtime'] > time() - self::MIN_AGE ) {
+			if ( self::is_held( $file['path'] ) ) {
+				$pending = true;
+				continue;
+			}
+			if ( null !== $only ) {
+				// Written by this request and complete: anything older or still empty is not.
+				if ( $file['mtime'] < (int) floor( $request_start ) || 0 === $file['size'] ) {
+					$pending = true;
+					continue;
+				}
+			} elseif ( $file['mtime'] > time() - self::MIN_AGE ) {
+				// A file younger than a minute may still be in the making (thumbnails, an optimizer).
 				$pending = true;
 				continue;
 			}
@@ -179,6 +269,7 @@ final class Simple_Storage_Media {
 			$result = self::offload_file( $client, $file );
 			Simple_Storage_Jobs::heartbeat();
 			if ( is_wp_error( $result ) ) {
+				$failed = true;
 				Simple_Storage_Log::error( $file['path'] . ': ' . $result->get_error_message() );
 			} elseif ( $result ) {
 				++$moved;
@@ -189,7 +280,10 @@ final class Simple_Storage_Media {
 			/* translators: 1: number of files, 2: folder. */
 			Simple_Storage_Log::info( sprintf( __( 'Automatically moved %1$d new files from %2$s to the storage.', 'simple-storage' ), $moved, $dir ) );
 		}
-		if ( $pending ) {
+		// The folder's event is never cleared here: another request may have counted on it.
+		if ( $failed ) {
+			self::schedule( $dir, 15 * MINUTE_IN_SECONDS );
+		} elseif ( $pending ) {
 			self::schedule( $dir, self::DELAY );
 		}
 	}
@@ -242,11 +336,16 @@ final class Simple_Storage_Media {
 		if ( ! Simple_Storage_Paths::is_media_path( $relative ) ) {
 			return false;
 		}
+		$row = Simple_Storage_Index::has_remote_files() ? Simple_Storage_Index::get( $relative ) : null;
 		if ( is_file( Simple_Storage_Paths::local( $relative ) ) ) {
+			if ( null !== $row && $row['remote'] ) {
+				// Brought back earlier and still in use: it stays a while longer.
+				self::hold( $relative );
+			}
+
 			return true;
 		}
 
-		$row = Simple_Storage_Index::has_remote_files() ? Simple_Storage_Index::get( $relative ) : null;
 		if ( null === $row || ! $row['remote'] || $row['conflict'] ) {
 			return false;
 		}
@@ -261,6 +360,7 @@ final class Simple_Storage_Media {
 
 		/* translators: %s: file path. */
 		Simple_Storage_Log::info( sprintf( __( '%s was brought back from the storage to be processed locally.', 'simple-storage' ), $relative ) );
+		self::hold( $relative );
 		if ( self::auto_enabled() ) {
 			// The work may save its result elsewhere (or not at all): the folder goes out again.
 			self::schedule( implode( '/', array_slice( explode( '/', $relative ), 0, 2 ) ) );

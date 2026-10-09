@@ -29,6 +29,7 @@ final class Simple_Storage_Plugin {
 		Simple_Storage_Delivery::init();
 		Simple_Storage_Media::init();
 		Simple_Storage_Timber::init();
+		Simple_Storage_Runner::init();
 
 		if ( is_admin() ) {
 			Simple_Storage_Admin::init();

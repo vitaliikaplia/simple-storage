@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Simple Storage frees the disk of a WordPress hosting by moving the media files t
 * Move everything to the storage: copy → verify → enable serving from the storage → check serving end to end → delete local copies. A local file is deleted only after its remote copy has been verified (the size through the API and, in strict mode, the default, the SHA-256 of a download from the public address), after a probe file with the same extension that exists only in the storage was actually served at its uploads address, and after the storage confirmed the copy once more right before the delete. Files of an extension that fails the check stay local.
 * Return everything to WordPress: download into a temporary file → verify → move into place with the original modification time → delete from the storage → disable serving from the storage.
 * The jobs run in short AJAX steps with live progress and can be paused and continued; a closed tab only pauses them. The same jobs are available through WP-CLI.
-* New uploads follow automatically a few minutes after WordPress has created their thumbnails; this never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
+* New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
 * Image editing keeps working for files that live only in the storage: crop, rotate, flip, scale and "Restore original image" in the classic editor, the Customizer crop and the crop of the Image block bring the original back first, and the edited files then follow into the storage.
 * Thumbnail regeneration too: `wp media regenerate` and Regenerate Thumbnails get the original back; the new sizes replace the old ones in the storage, and old sizes that are no longer generated are deleted there as well (unless `--skip-delete`), never an original or another attachment's file. The automatic offload waits while a regeneration runs. With `--only-missing`, sizes that live only in the storage count as missing for WP-CLI, so such attachments are regenerated in full.
 * Timber's on-the-fly resizing (`|resize` in Twig) uses a size from the storage without the original; a size that does not exist yet is cut in the background from the original brought back, and both go out again. Deleting an attachment deletes Timber's sizes and WebP/AVIF copies kept next to the image (`photo-jpg.webp`) in the storage too.
@@ -41,7 +41,7 @@ The login, password and storage address can also be defined as the `SIMPLE_STORA
 
 WP-CLI: `wp simple-storage status`, `test`, `index`, `push`, `pull`, `resume`, `cancel`, `delivery on|off`.
 
-For themes and plugins that work with media files themselves: `simple_storage_ensure_local( $attachment_id_or_path_or_url )` brings a file back from the storage, `simple_storage_file_exists( $path_or_url )` replaces `file_exists()` and knows files in the storage, `simple_storage_timber_resize()` is `Timber\ImageHelper::resize()` for direct PHP calls, and the `simple_storage_attachment_files` filter adds files a theme keeps for an attachment outside its metadata.
+For themes and plugins that work with media files themselves: `simple_storage_ensure_local( $attachment_id_or_path_or_url )` brings a file back from the storage, `simple_storage_file_exists( $path_or_url )` replaces `file_exists()` and knows files in the storage, `simple_storage_queue_offload( $path )` sends a file the code has just written to the storage at the end of the request, `simple_storage_timber_resize()` is `Timber\ImageHelper::resize()` for direct PHP calls, and the `simple_storage_attachment_files` filter adds files a theme keeps for an attachment outside its metadata.
 
 == Frequently Asked Questions ==
 
@@ -62,6 +62,9 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.3.0 =
+* Works without WP-Cron (DISABLE_WP_CRON with no server cron): new uploads go to the storage at the end of the upload request, sizes cut on page views (Timber, or a theme through simple_storage_queue_offload()) at the end of that request, and the plugin's delayed work (folder offloads, retried remote deletions, background Timber sizes) runs at the end of ordinary requests, after the response where the server allows it.
 
 = 0.2.0 =
 * First working release: indexing of the media folders, transfer to the storage and back with SHA-256 verification, serving through a transparent proxy (Apache mod_proxy or proxy.php) or directly from the storage, an end-to-end serving check per extension before local copies are deleted, automatic transfer of new uploads, deletion of remote copies with their attachments, protection against name conflicts, image editing and thumbnail regeneration (WP-CLI, Regenerate Thumbnails, Timber resizing) for files that live only in the storage, functions for themes, WP-CLI commands, updates from GitHub and a Ukrainian translation.

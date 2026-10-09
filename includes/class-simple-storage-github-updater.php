@@ -100,7 +100,7 @@ final class Simple_Storage_GitHub_Updater {
 			'download_link' => $remote_data['package'] ?? $this->get_package_url(),
 			'sections'      => array(
 				'description' => '<p>' . esc_html__( 'Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly.', 'simple-storage' ) . '</p>',
-				'changelog'   => '<p>' . esc_html__( 'Version 0.2.0 is the first working release: indexing of the media folders, transfer to the storage and back with SHA-256 verification, serving through a transparent proxy or directly from the storage with an end-to-end check before local copies are deleted, automatic transfer of new uploads, image editing and thumbnail regeneration (WP-CLI, Regenerate Thumbnails, Timber resizing) for files that live only in the storage, functions for themes, WP-CLI commands, updates from GitHub and a Ukrainian translation.', 'simple-storage' ) . '</p>',
+				'changelog'   => '<p>' . esc_html__( 'Version 0.3.0 works without WP-Cron: new uploads go to the storage at the end of the upload request, sizes that Timber or a theme cuts on page views follow at the end of that request, and the plugin runs its own delayed work at the end of ordinary requests when WP-Cron is off. Themes can announce files they write with simple_storage_queue_offload().', 'simple-storage' ) . '</p>',
 			),
 		);
 	}

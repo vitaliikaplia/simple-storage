@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Simple Storage
  * Description: Moves WordPress media files to the Hosting Ukraine storage and back, with verification and serving from the storage.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: Vitalii Kaplia
  * Author URI: https://kaplia.pro/
  * Update URI: https://github.com/vitaliikaplia/simple-storage
@@ -32,7 +32,7 @@ if ( PHP_VERSION_ID < 80100 ) {
 	return;
 }
 
-define( 'SIMPLE_STORAGE_VERSION', '0.2.0' );
+define( 'SIMPLE_STORAGE_VERSION', '0.3.0' );
 define( 'SIMPLE_STORAGE_FILE', __FILE__ );
 define( 'SIMPLE_STORAGE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SIMPLE_STORAGE_URL', plugin_dir_url( __FILE__ ) );
@@ -50,6 +50,7 @@ require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-delivery.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-jobs.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-media.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-timber.php';
+require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-runner.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-admin.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-cli.php';
 require_once SIMPLE_STORAGE_DIR . 'includes/class-simple-storage-github-updater.php';
