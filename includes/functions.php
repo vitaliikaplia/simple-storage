@@ -92,9 +92,10 @@ function simple_storage_file_exists( $target ): bool {
 
 /**
  * Tell the plugin that code has just written a media file (a size cut on a page view, a WebP
- * copy): it is copied to the storage at the end of the request, and its local copy goes with the
- * folder's scheduled run, which also takes the file should that request not get to it. Does
- * nothing unless new files follow into the storage.
+ * copy): it goes to the storage at the end of the request, verified, and leaves the disk (later,
+ * with the folder's scheduled run, where an image optimizer works in the background); that run
+ * also takes the file should the request not get to it. Does nothing unless new files follow
+ * into the storage.
  *
  * @param string $target Absolute path, uploads URL or uploads-relative path of the new file.
  */

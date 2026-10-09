@@ -39,11 +39,42 @@ final class Simple_Storage_Prune {
 		add_action( self::HOOK, array( self::class, 'run' ), 10, 2 );
 	}
 
-	/** A file was deleted in the storage: its month folder may be empty now. */
+	/** @var array<string, bool> Month folders this request deleted files in. */
+	private static array $queued = array();
+
+	/**
+	 * A file was deleted in the storage: its month folder may be empty now. It is pruned at the end
+	 * of this request (Simple_Storage_Runner), with a scheduled run as the fallback.
+	 */
 	public static function schedule( string $relative, int $delay = self::DELAY ): void {
 		$month = Simple_Storage_Paths::month_dir( $relative );
 		if ( self::prunable( $month ) ) {
+			self::$queued[ $month ] = true;
 			Simple_Storage_Runner::schedule_event( time() + $delay, self::HOOK, array( $month ) );
+		}
+	}
+
+	/** Run for a month folder again later (the lock was busy, a job or a regeneration is running). */
+	private static function later( string $month, int $delay ): void {
+		Simple_Storage_Runner::schedule_event( time() + $delay, self::HOOK, array( $month ) );
+	}
+
+	/** @return array<int, string> Month folders queued in this request, taken off the queue. */
+	public static function take_queued(): array {
+		$months       = array_keys( self::$queued );
+		self::$queued = array();
+
+		return array_map( 'strval', $months );
+	}
+
+	/**
+	 * @param array<int, string> $months
+	 * @param float              $wait   Seconds to wait for the job lock another request holds.
+	 */
+	public static function run_now( array $months, float $wait = 0.0 ): void {
+		$until = microtime( true ) + $wait;
+		foreach ( $months as $month ) {
+			self::run( $month, 0, max( 0.0, $until - microtime( true ) ) );
 		}
 	}
 
@@ -57,8 +88,9 @@ final class Simple_Storage_Prune {
 	 *
 	 * @param mixed $month
 	 * @param mixed $attempt How many runs for this folder failed before.
+	 * @param float $wait    Seconds to wait for the job lock another request holds.
 	 */
-	public static function run( $month, $attempt = 0 ): void {
+	public static function run( $month, $attempt = 0, float $wait = 0.0 ): void {
 		$month   = (string) $month;
 		$attempt = (int) $attempt;
 		if ( ! self::prunable( $month ) || ! Simple_Storage_Settings::is_configured() ) {
@@ -68,13 +100,23 @@ final class Simple_Storage_Prune {
 		// As the automatic offload does: never alongside a job or a regeneration, and only with
 		// the lock, which keeps every upload out of the folders meanwhile.
 		if ( Simple_Storage_Jobs::is_active() || Simple_Storage_Media::regeneration_running() ) {
-			self::schedule( $month, 5 * MINUTE_IN_SECONDS );
+			self::later( $month, 5 * MINUTE_IN_SECONDS );
 
 			return;
 		}
-		$lock = Simple_Storage_Jobs::lock();
+		$lock  = Simple_Storage_Jobs::lock();
+		$until = microtime( true ) + $wait;
+		while ( null === $lock && microtime( true ) < $until ) {
+			usleep( 500000 );
+			// A job that started meanwhile ends the wait; this request's copy of the option would not show it.
+			Simple_Storage_Media::forget_cached_state();
+			if ( Simple_Storage_Jobs::is_active() ) {
+				break;
+			}
+			$lock = Simple_Storage_Jobs::lock();
+		}
 		if ( null === $lock ) {
-			self::schedule( $month, 5 * MINUTE_IN_SECONDS );
+			self::later( $month, 5 * MINUTE_IN_SECONDS );
 
 			return;
 		}
@@ -82,7 +124,7 @@ final class Simple_Storage_Prune {
 		try {
 			// A job may have started between the check and the lock; it does not take the lock.
 			if ( Simple_Storage_Jobs::is_active() ) {
-				self::schedule( $month, 5 * MINUTE_IN_SECONDS );
+				self::later( $month, 5 * MINUTE_IN_SECONDS );
 
 				return;
 			}

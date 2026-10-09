@@ -100,7 +100,7 @@ final class Simple_Storage_GitHub_Updater {
 			'download_link' => $remote_data['package'] ?? $this->get_package_url(),
 			'sections'      => array(
 				'description' => '<p>' . esc_html__( 'Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly.', 'simple-storage' ) . '</p>',
-				'changelog'   => '<p>' . esc_html__( 'Version 0.3.2: folders that deleting files leaves empty in the storage (a month, its subfolders, a year) are removed too, safely, under the job lock. Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) deletes its files in the storage too, and new files are copied to the storage at the end of the request that wrote them.', 'simple-storage' ) . '</p>',
+				'changelog'   => '<p>' . esc_html__( 'Version 0.3.3: new files go to the storage and leave the disk at the end of the request that wrote them, and folders left empty in the storage are removed at the end of the request that deleted the files, without waiting for other requests; with a background image optimizer the local copies wait for it. Version 0.3.2: folders that deleting files leaves empty in the storage are removed too, safely, under the job lock.', 'simple-storage' ) . '</p>',
 			),
 		);
 	}

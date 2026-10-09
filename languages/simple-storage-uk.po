@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.3.2\n"
+"Project-Id-Version: Simple Storage 0.3.3\n"
 "Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
 "PO-Revision-Date: 2026-10-09 07:45+0300\n"
 "Last-Translator: Vitalii Kaplia\n"
@@ -314,7 +314,7 @@ msgid "The directory does not exist in the storage."
 msgstr "Такого каталогу в сховищі немає."
 
 #: includes/class-simple-storage-client.php:314
-#: includes/class-simple-storage-prune.php:131
+#: includes/class-simple-storage-prune.php:173
 msgid "The storage returned a directory listing that cannot be read."
 msgstr "Сховище повернуло список каталогу, який не вдається прочитати."
 
@@ -384,8 +384,8 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.3.2: folders that deleting files leaves empty in the storage (a month, its subfolders, a year) are removed too, safely, under the job lock. Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) deletes its files in the storage too, and new files are copied to the storage at the end of the request that wrote them."
-msgstr "Версія 0.3.2: теки, які після видалення файлів лишаються в сховищі порожніми (місяць, його підтеки, рік), теж видаляються — безпечно, під блокуванням задач. Версія 0.3.1: видалення вкладення, мовні копії якого видаляються разом (WP-LOC), видаляє його файли й у сховищі, а нові файли копіюються в сховище наприкінці запиту, що їх записав."
+msgid "Version 0.3.3: new files go to the storage and leave the disk at the end of the request that wrote them, and folders left empty in the storage are removed at the end of the request that deleted the files, without waiting for other requests; with a background image optimizer the local copies wait for it. Version 0.3.2: folders that deleting files leaves empty in the storage are removed too, safely, under the job lock."
+msgstr "Версія 0.3.3: нові файли переносяться в сховище й зникають з диска наприкінці запиту, що їх записав, а теки, що лишились у сховищі порожніми, прибираються наприкінці запиту, що видалив файли, — без очікування інших запитів; з фоновим оптимізатором зображень локальні копії чекають, поки він закінчить. Версія 0.3.2: теки, які після видалення файлів лишаються в сховищі порожніми, теж видаляються — безпечно, під блокуванням задач."
 
 #: includes/class-simple-storage-index.php:206
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
@@ -595,19 +595,25 @@ msgid "Removing empty storage folders"
 msgstr "Видалення порожніх тек у сховищі"
 
 #. translators: 1: number of files, 2: folder.
-#: includes/class-simple-storage-media.php:306
+#: includes/class-simple-storage-media.php:402
 #, php-format
 msgid "Automatically moved %1$d new files from %2$s to the storage."
 msgstr "Автоматично перенесено в сховище нових файлів із %2$s: %1$d."
 
+#. translators: %s: folder.
+#: includes/class-simple-storage-media.php:433
+#, php-format
+msgid "Moving the files of %s to the storage was cut short several times in a row; it is tried again with the next change in that folder."
+msgstr "Перенесення файлів %s у сховище кілька разів поспіль обривалося; наступна спроба — з наступною зміною в цій теці."
+
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:394
+#: includes/class-simple-storage-media.php:530
 #, php-format
 msgid "%s was brought back from the storage to be processed locally."
 msgstr "%s повернуто зі сховища для обробки на сайті."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:1197
+#: includes/class-simple-storage-media.php:1471
 #, php-format
 msgid "Could not delete %s from the storage; delete it manually."
 msgstr "Не вдалося видалити %s зі сховища — видаліть його вручну."
@@ -625,7 +631,7 @@ msgid "Plugin activation refused"
 msgstr "Активацію плагіна відхилено"
 
 #. translators: %s: folder path.
-#: includes/class-simple-storage-prune.php:224
+#: includes/class-simple-storage-prune.php:266
 #, php-format
 msgid "Removed the empty folder %s from the storage."
 msgstr "Порожню теку %s видалено зі сховища."

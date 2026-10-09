@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.2
+Stable tag: 0.3.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Simple Storage frees the disk of a WordPress hosting by moving the media files t
 * Move everything to the storage: copy → verify → enable serving from the storage → check serving end to end → delete local copies. A local file is deleted only after its remote copy has been verified (the size through the API and, in strict mode, the default, the SHA-256 of a download from the public address), after a probe file with the same extension that exists only in the storage was actually served at its uploads address, and after the storage confirmed the copy once more right before the delete. Files of an extension that fails the check stay local.
 * Return everything to WordPress: download into a temporary file → verify → move into place with the original modification time → delete from the storage → disable serving from the storage.
 * The jobs run in short AJAX steps with live progress and can be paused and continued; a closed tab only pauses them. The same jobs are available through WP-CLI.
-* New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. They are copied and verified right away; their local copies go a minute or two later, once image optimizers that work in the background are done with them. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and a folder that is left empty there (a month, its subfolders, a year) is removed a minute later; new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
+* New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. They are copied, verified and removed from the disk right away, in that same request, which no page cache ever serves; with an image optimizer that works in the background (Smush, Imagify, EWWW, ShortPixel, Converter for Media and the like) the local copies go a minute or two later instead, once it is done with them (filter `simple_storage_remove_at_request_end`). An optimizer that only gets to new uploads minutes later from cron (WP-Optimize, LiteSpeed's image optimization) finds them in the storage already; run it before turning the automatic transfer on. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and a folder that is left empty there (a month, its subfolders, a year) is removed at the end of that request; new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
 * Image editing keeps working for files that live only in the storage: crop, rotate, flip, scale and "Restore original image" in the classic editor, the Customizer crop and the crop of the Image block bring the original back first, and the edited files then follow into the storage.
 * Thumbnail regeneration too: `wp media regenerate` and Regenerate Thumbnails get the original back; the new sizes replace the old ones in the storage, and old sizes that are no longer generated are deleted there as well (unless `--skip-delete`), never an original or another attachment's file. The automatic offload waits while a regeneration runs. With `--only-missing`, sizes that live only in the storage count as missing for WP-CLI, so such attachments are regenerated in full.
 * Timber's on-the-fly resizing (`|resize` in Twig) uses a size from the storage without the original; a size that does not exist yet is cut in the background from the original brought back, and both go out again. Deleting an attachment deletes Timber's sizes and WebP/AVIF copies kept next to the image (`photo-jpg.webp`) in the storage too.
@@ -62,6 +62,15 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.3.3 =
+* Files an upload (or a Timber size, or a theme through simple_storage_queue_offload()) writes leave the disk at the end of that same request again, once copied and verified, instead of with a folder run a minute or two later that waited for some other request; only with an image optimizer that works in the background do they wait for it (filter simple_storage_remove_at_request_end).
+* WordPress 7.1 client-side media processing (block editor uploads, where the browser makes the sizes in later requests): an upload's files stay on the disk until the request that finalizes it, so themes still find the original there, and then all go together; should the browser never finish, they go after an hour.
+* When WordPress finishes the sizes of an upload whose request died (post-process), the original is brought back from the storage first; a fatal error is recognised even when a later notice replaces it.
+* After its response, a request waits up to a minute for another upload's lock instead of leaving its files to a scheduled run; a WP-CLI command (wp media import, wp post delete) moves its files and removes emptied folders at its end too.
+* Storage folders a deletion leaves empty are removed at the end of the request that deleted the files, with a scheduled run as the fallback.
+* A folder run cut short (a time limit, a server restart) is finished by a lease event fifteen minutes later, at most three times in a row, instead of waiting for the next upload in that folder.
+* Deleting the plugin also removes its short-lived state (held files, leases).
 
 = 0.3.2 =
 * A folder in the storage that deleting files leaves empty (a month, its subfolders, a year) is removed too, as is every folder a return from the storage empties. Because the storage deletes a folder with everything in it, a folder goes only under the job lock that every upload holds, and only when a listing in a known format, the folder itself and the index all show it empty; the site folder is never touched.

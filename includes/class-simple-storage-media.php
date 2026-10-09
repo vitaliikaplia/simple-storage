@@ -19,6 +19,23 @@ final class Simple_Storage_Media {
 	private const DELAY = 90;
 	private const BUDGET = 20;
 
+	/**
+	 * Image optimizers that rewrite or add files after the upload request (plugin folder names):
+	 * with one of them active, files leave the disk only with the folder's later run.
+	 */
+	private const BACKGROUND_OPTIMIZERS = array( 'wp-smushit', 'wp-smush-pro', 'imagify', 'ewww-image-optimizer', 'ewww-image-optimizer-cloud', 'shortpixel-image-optimiser', 'tiny-compress-images', 'image-optimization', 'robin-image-optimizer', 'kraken-image-optimizer', 'squeeze', 'image-optimizer-wd', 'imagerecycle-pdf-image-compression', 'webp-converter-for-media' );
+
+	/**
+	 * Attachment meta of an upload whose sizes the browser makes (WordPress 7.1+ client-side media
+	 * processing): "time|YYYY/MM/stem". Its files stay local until the request that finalizes it,
+	 * for at most CLIENT_WAIT seconds.
+	 */
+	private const CLIENT_META = '_simple_storage_client_processing';
+	private const CLIENT_WAIT = HOUR_IN_SECONDS;
+
+	/** A folder run cut short this many times in a row is not retried by a lease any more. */
+	private const MAX_LEASES = 3;
+
 	/** Option holding the time a `wp media regenerate` run last showed signs of life. */
 	public const REGENERATING_OPTION = 'simple_storage_regenerating';
 
@@ -46,6 +63,9 @@ final class Simple_Storage_Media {
 	/** @var array<string, bool> Files this request brought back or worked with, held local. */
 	private static array $in_use = array();
 
+	/** Whether this request uploads a file whose sizes the browser makes. */
+	private static bool $client_upload = false;
+
 	public static function init(): void {
 		add_action( self::OFFLOAD_HOOK, array( self::class, 'offload_dir' ) );
 		add_action( self::DELETE_HOOK, array( self::class, 'retry_delete' ), 10, 2 );
@@ -54,8 +74,12 @@ final class Simple_Storage_Media {
 		add_action( 'deleted_post', array( self::class, 'attachment_deleted' ) );
 		add_filter( 'wp_delete_file', array( self::class, 'delete_file' ), 99 );
 		add_filter( 'load_image_to_edit_path', array( self::class, 'load_image_to_edit_path' ), 10, 3 );
+		add_filter( 'rest_request_before_callbacks', array( self::class, 'note_client_processing' ), 9, 3 );
+		add_filter( 'rest_request_after_callbacks', array( self::class, 'client_processing_finalized' ), 10, 3 );
 		add_filter( 'rest_request_before_callbacks', array( self::class, 'before_rest_edit' ), 10, 3 );
+		add_action( 'add_attachment', array( self::class, 'client_upload_started' ), 5 );
 		add_action( 'wp_ajax_regeneratethumbnail', array( self::class, 'before_regenerate_ajax' ), 1 );
+		add_action( 'wp_ajax_media-create-image-subsizes', array( self::class, 'before_subsizes_ajax' ), 1 );
 		add_filter( 'wp_update_attachment_metadata', array( self::class, 'claim_regenerated' ), 98, 2 );
 		add_filter( 'wp_get_original_image_path', array( self::class, 'regeneration_source' ), 99, 2 );
 		add_filter( 'get_attached_file', array( self::class, 'regeneration_attached_file' ), 99, 2 );
@@ -134,22 +158,55 @@ final class Simple_Storage_Media {
 		Simple_Storage_Runner::schedule_event( time() + $delay, self::OFFLOAD_HOOK, array( $dir ) );
 	}
 
-	/** Cron: move settled local files of one YYYY/MM folder to the storage. */
+	/**
+	 * Cron: move settled local files of one YYYY/MM folder to the storage.
+	 *
+	 * @param mixed $dir
+	 */
 	public static function offload_dir( $dir ): void {
 		self::offload( (string) $dir, 0.0, null );
 	}
 
 	/**
-	 * At the end of a request: copy the files this request wrote — exactly these paths, complete
-	 * by then — to the storage and verify them. Their local copies go with the folder's scheduled
-	 * run once they have settled for a minute: an optimizer the upload started may still be
-	 * rewriting them, and that run uploads a rewritten file again instead of taking it for a
-	 * stranger. Everything else in the folder waits for that run as well.
+	 * At the end of a request: move the files this request wrote — exactly these paths, complete
+	 * by then — to the storage, verified, and remove their local copies right away. Where an image
+	 * optimizer works in the background (see remove_at_request_end()) they are only copied, and
+	 * their local copies go with the folder's scheduled run once they have settled for a minute.
+	 * Everything else in the folder waits for that run as well.
 	 *
 	 * @param array<int, string> $paths
 	 */
-	public static function offload_paths_now( string $dir, array $paths, float $request_start ): void {
-		self::offload( $dir, $request_start, $paths );
+	public static function offload_paths_now( string $dir, array $paths, float $request_start, float $wait = 0.0 ): void {
+		self::offload( $dir, $request_start, $paths, $wait );
+	}
+
+	/**
+	 * Whether the files a request wrote leave the disk at its end. Not where an image optimizer
+	 * works in the background: it rewrites or adds files in requests of its own after the upload,
+	 * and would find them gone, or bring one back under a name the storage already holds. Filter
+	 * simple_storage_remove_at_request_end to decide otherwise.
+	 */
+	public static function remove_at_request_end(): bool {
+		return (bool) apply_filters( 'simple_storage_remove_at_request_end', ! self::background_optimizer_active() );
+	}
+
+	/** Forget this request's copies of the plugin's state, which another request may have changed. */
+	public static function forget_cached_state(): void {
+		foreach ( array( 'alloptions', 'notoptions', Simple_Storage_Jobs::OPTION, self::REGENERATING_OPTION ) as $key ) {
+			wp_cache_delete( $key, 'options' );
+		}
+		Simple_Storage_Settings::flush_cache();
+	}
+
+	/** Whether an active plugin optimizes or converts uploaded images after the upload request. */
+	private static function background_optimizer_active(): bool {
+		foreach ( (array) get_option( 'active_plugins', array() ) as $plugin ) {
+			if ( in_array( strtok( (string) $plugin, '/' ), self::BACKGROUND_OPTIMIZERS, true ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -203,8 +260,11 @@ final class Simple_Storage_Media {
 		return (bool) get_transient( 'simple_storage_hold_' . md5( $relative ) );
 	}
 
-	/** @param array<int, string>|null $only Exact paths written by this request, or null for the folder. */
-	private static function offload( string $dir, float $request_start, ?array $only ): void {
+	/**
+	 * @param array<int, string>|null $only Exact paths written by this request, or null for the folder.
+	 * @param float                   $wait Seconds to wait for the job lock another request holds.
+	 */
+	private static function offload( string $dir, float $request_start, ?array $only, float $wait = 0.0 ): void {
 		if ( ! self::auto_enabled() || ! Simple_Storage_Paths::is_month_dir( $dir ) ) {
 			return;
 		}
@@ -216,7 +276,20 @@ final class Simple_Storage_Media {
 
 			return;
 		}
-		$lock = Simple_Storage_Jobs::lock();
+		// Uploads of one person overlap (the next file arrives while the last is still moving):
+		// after its response, a request waits its turn rather than leaving its files to an event.
+		$lock   = Simple_Storage_Jobs::lock();
+		$until  = microtime( true ) + $wait;
+		$waited = false;
+		while ( null === $lock && microtime( true ) < $until ) {
+			$waited = true;
+			usleep( 500000 );
+			self::forget_cached_state();
+			if ( Simple_Storage_Jobs::is_active() ) {
+				break;
+			}
+			$lock = Simple_Storage_Jobs::lock();
+		}
 		if ( null === $lock ) {
 			self::schedule( $dir, 5 * MINUTE_IN_SECONDS );
 
@@ -224,6 +297,18 @@ final class Simple_Storage_Media {
 		}
 
 		try {
+			// While this request waited, a job may have started or the site gone back to serving
+			// local files: decide again on what the database says now.
+			if ( $waited ) {
+				self::forget_cached_state();
+			}
+			if ( $waited && ( ! self::auto_enabled() || Simple_Storage_Jobs::is_active() || self::regeneration_running() ) ) {
+				if ( self::auto_enabled() ) {
+					self::schedule( $dir, 5 * MINUTE_IN_SECONDS );
+				}
+
+				return;
+			}
 			self::offload_locked( $dir, $request_start, $only );
 		} finally {
 			Simple_Storage_Jobs::unlock( $lock );
@@ -258,11 +343,16 @@ final class Simple_Storage_Media {
 			}
 		}
 
-		$deadline = microtime( true ) + self::BUDGET;
-		$pending  = false;
-		$failed   = false;
-		$moved    = 0;
-		$skip     = self::transient_files( $dir );
+		$leased     = null === $only && ! empty( $files );
+		$own_lease  = $leased && self::take_lease( $dir );
+		$deadline   = microtime( true ) + self::BUDGET;
+		$remove     = null === $only || self::remove_at_request_end();
+		$waiting    = self::client_waiting( $dir );
+		$wait_until = 0;
+		$pending    = false;
+		$failed     = false;
+		$moved      = 0;
+		$skip       = self::transient_files( $dir );
 		foreach ( $files as $file ) {
 			if ( isset( $skip[ $file['path'] ] ) ) {
 				continue;
@@ -270,6 +360,12 @@ final class Simple_Storage_Media {
 			if ( microtime( true ) >= $deadline ) {
 				$pending = true;
 				break;
+			}
+			$until = self::waiting_until( $file['path'], $waiting );
+			if ( $until > 0 ) {
+				// The browser is still making this upload's sizes.
+				$wait_until = max( $wait_until, $until );
+				continue;
 			}
 			if ( self::is_held( $file['path'] ) ) {
 				$pending = true;
@@ -287,14 +383,14 @@ final class Simple_Storage_Media {
 				continue;
 			}
 
-			// At the end of a request the file is only copied; its local copy goes with the
-			// folder's run, which keeps the one-minute rule.
-			$result = self::offload_file( $client, $file, null === $only );
+			// A file only copied at the end of a request leaves the disk with the folder's run,
+			// which keeps the one-minute rule.
+			$result = self::offload_file( $client, $file, $remove );
 			Simple_Storage_Jobs::heartbeat();
 			if ( is_wp_error( $result ) ) {
 				$failed = true;
 				Simple_Storage_Log::error( $file['path'] . ': ' . $result->get_error_message() );
-			} elseif ( null !== $only ) {
+			} elseif ( ! $remove ) {
 				$pending = true;
 			} elseif ( $result ) {
 				++$moved;
@@ -310,6 +406,46 @@ final class Simple_Storage_Media {
 			self::schedule( $dir, 15 * MINUTE_IN_SECONDS );
 		} elseif ( $pending ) {
 			self::schedule( $dir, self::DELAY );
+		}
+		if ( $wait_until > 0 ) {
+			// Should the browser never finish, the files go once the wait runs out.
+			Simple_Storage_Runner::schedule_event( $wait_until + MINUTE_IN_SECONDS, self::OFFLOAD_HOOK, array( $dir, 'client' ) );
+		}
+		if ( $leased ) {
+			self::end_lease( $dir, $own_lease );
+		}
+	}
+
+	/**
+	 * A folder run cut short (a time limit, a restart) would leave its work with no event to finish
+	 * it: the one that started it is off the schedule by then. A lease event does, unless the run
+	 * gets to its end; after MAX_LEASES runs in a row that did not, the folder waits for its next
+	 * change instead of being retried every fifteen minutes.
+	 *
+	 * @return bool Whether this run scheduled the lease it must clear.
+	 */
+	private static function take_lease( string $dir ): bool {
+		$key   = 'simple_storage_lease_' . md5( $dir );
+		$count = (int) get_transient( $key );
+		if ( $count >= self::MAX_LEASES ) {
+			if ( self::MAX_LEASES === $count ) {
+				/* translators: %s: folder. */
+				Simple_Storage_Log::error( sprintf( __( 'Moving the files of %s to the storage was cut short several times in a row; it is tried again with the next change in that folder.', 'simple-storage' ), $dir ) );
+				set_transient( $key, $count + 1, DAY_IN_SECONDS );
+			}
+
+			return false;
+		}
+		set_transient( $key, $count + 1, DAY_IN_SECONDS );
+
+		return Simple_Storage_Runner::schedule_event( time() + 15 * MINUTE_IN_SECONDS, self::OFFLOAD_HOOK, array( $dir, 'lease' ) );
+	}
+
+	/** The run got to its end: the folder is healthy, and a lease it scheduled is not needed. */
+	private static function end_lease( string $dir, bool $own ): void {
+		delete_transient( 'simple_storage_lease_' . md5( $dir ) );
+		if ( $own ) {
+			Simple_Storage_Runner::clear_event( self::OFFLOAD_HOOK, array( $dir, 'lease' ) );
 		}
 	}
 
@@ -447,7 +583,8 @@ final class Simple_Storage_Media {
 		}
 
 		$route = $request->get_route();
-		if ( ! ( 'POST' === $request->get_method() && preg_match( '#^/wp/v2/media/(\d+)/edit$#', $route, $match ) )
+		// Editing, and WordPress finishing the sizes of an upload whose request died (post-process).
+		if ( ! ( 'POST' === $request->get_method() && preg_match( '#^/wp/v2/media/(\d+)/(?:edit|post-process)$#', $route, $match ) )
 			&& ! preg_match( '#^/regenerate-thumbnails/v1/regenerate/(\d+)$#', $route, $match ) ) {
 			return $response;
 		}
@@ -463,6 +600,143 @@ final class Simple_Storage_Media {
 		}
 
 		return $response;
+	}
+
+	/** The media modal finishes the sizes of an upload whose request died, from the original. */
+	public static function before_subsizes_ajax(): void {
+		$attachment_id = (int) ( $_POST['attachment_id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
+		if ( $attachment_id <= 0 || ! current_user_can( 'edit_post', $attachment_id ) ) {
+			return;
+		}
+
+		self::remember_files( $attachment_id );
+		foreach ( self::edit_sources( $attachment_id ) as $relative ) {
+			self::ensure_local( $relative );
+		}
+	}
+
+	/**
+	 * WordPress 7.1+ lets the browser make the sizes of an upload: the upload request stores only
+	 * the file, sideload requests add the sizes, and a finalize request writes the metadata — where
+	 * themes make their WebP/AVIF copies from the files on disk. The files stay local until then.
+	 *
+	 * @param mixed $response
+	 * @param mixed $handler
+	 * @param mixed $request
+	 * @return mixed
+	 */
+	public static function note_client_processing( $response, $handler, $request ) {
+		if ( ! $request instanceof WP_REST_Request || 'POST' !== $request->get_method() ) {
+			return $response;
+		}
+
+		if ( '/wp/v2/media' === $request->get_route() && false === $request['generate_sub_sizes'] ) {
+			self::$client_upload = true;
+		}
+
+		return $response;
+	}
+
+	/**
+	 * The browser is done once finalize has written the metadata — not before: the hold stays
+	 * while its metadata filters (themes making WebP/AVIF copies) read the files, and after a
+	 * finalize that failed.
+	 *
+	 * @param mixed $response
+	 * @param mixed $handler
+	 * @param mixed $request
+	 * @return mixed
+	 */
+	public static function client_processing_finalized( $response, $handler, $request ) {
+		if ( $request instanceof WP_REST_Request && 'POST' === $request->get_method() && preg_match( '#^/wp/v2/media/(\d+)/finalize$#', $request->get_route(), $match )
+			&& ! is_wp_error( $response ) && ! ( $response instanceof WP_HTTP_Response && $response->get_status() >= 400 ) && current_user_can( 'edit_post', (int) $match[1] ) ) {
+			self::client_processing_done( (int) $match[1] );
+		}
+
+		return $response;
+	}
+
+	/** @param mixed $attachment_id */
+	public static function client_upload_started( $attachment_id ): void {
+		if ( ! self::$client_upload ) {
+			return;
+		}
+		self::$client_upload = false;
+
+		$file = (string) get_post_meta( (int) $attachment_id, '_wp_attached_file', true );
+		if ( Simple_Storage_Paths::is_media_path( $file ) ) {
+			$stem = dirname( $file ) . '/' . pathinfo( $file, PATHINFO_FILENAME );
+			update_post_meta( (int) $attachment_id, self::CLIENT_META, time() . '|' . $stem );
+		}
+	}
+
+	/** The browser is done: the attachment's files go out at the end of this request. */
+	public static function client_processing_done( int $attachment_id ): void {
+		if ( '' === (string) get_post_meta( $attachment_id, self::CLIENT_META, true ) ) {
+			return;
+		}
+
+		delete_post_meta( $attachment_id, self::CLIENT_META );
+		Simple_Storage_Runner::queue_finished_attachment( $attachment_id );
+	}
+
+	/**
+	 * Uploads in a folder whose sizes the browser is still making, with until when to wait and the
+	 * names of their files: the upload's own variants, the attached file now (core makes a scaled
+	 * or rotated sideload the attached file) and every file sideloaded so far.
+	 *
+	 * @return array<int, array{until: int, stem: string, names: array<string, bool>}>
+	 */
+	private static function client_waiting( string $dir ): array {
+		global $wpdb;
+
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s", self::CLIENT_META, '%|' . $wpdb->esc_like( $dir . '/' ) . '%' ),
+			ARRAY_A
+		);
+
+		$waiting = array();
+		foreach ( (array) $rows as $row ) {
+			list( $since, $stem ) = array_pad( explode( '|', (string) $row['meta_value'], 2 ), 2, '' );
+			$until                = (int) $since + self::CLIENT_WAIT;
+			if ( '' === $stem || $until <= time() ) {
+				continue;
+			}
+
+			$names = array( wp_basename( (string) get_post_meta( (int) $row['post_id'], '_wp_attached_file', true ) ) => true );
+			foreach ( (array) get_post_meta( (int) $row['post_id'], '_wp_sideloaded_file', false ) as $file ) {
+				$names[ wp_basename( (string) $file ) ] = true;
+			}
+			$waiting[] = array(
+				'until' => $until,
+				'stem'  => $stem,
+				'names' => $names,
+			);
+		}
+
+		return $waiting;
+	}
+
+	/**
+	 * Until when a file waits for the browser, 0 when it does not: the upload's own names only
+	 * ("photo.jpg", "photo-300x200.jpg", "photo-scaled.jpg", a theme's "photo-jpg.webp"), not
+	 * every name that starts the same ("photo-2.jpg" is another upload).
+	 *
+	 * @param array<int, array{until: int, stem: string, names: array<string, bool>}> $waiting
+	 */
+	private static function waiting_until( string $relative, array $waiting ): int {
+		$name = wp_basename( $relative );
+		foreach ( $waiting as $upload ) {
+			if ( dirname( $relative ) !== dirname( $upload['stem'] ) ) {
+				continue;
+			}
+			$base = preg_quote( wp_basename( $upload['stem'] ), '/' );
+			if ( isset( $upload['names'][ $name ] ) || preg_match( '/^' . $base . '(?:-\d+x\d+|-scaled|-rotated)*(?:\.[A-Za-z0-9]+|-[A-Za-z0-9]+\.(?:webp|avif))$/', $name ) ) {
+				return $upload['until'];
+			}
+		}
+
+		return 0;
 	}
 
 	/** Regenerate Thumbnails 2.x regenerates one image per admin-ajax request. */

@@ -74,6 +74,10 @@ foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_stor
 	delete_option( $simple_storage_option );
 }
 
+// Short-lived state: files held local, folder leases, Timber sizes that failed, the runner's flag.
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_simple\\_storage\\_%' OR option_name LIKE '\\_transient\\_timeout\\_simple\\_storage\\_%'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+delete_post_meta_by_key( '_simple_storage_client_processing' );
+
 wp_unschedule_hook( 'simple_storage_offload_dir' );
 wp_unschedule_hook( 'simple_storage_delete_remote' );
 wp_unschedule_hook( 'simple_storage_timber_resize' );

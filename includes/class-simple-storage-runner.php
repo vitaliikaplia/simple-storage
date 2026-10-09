@@ -6,11 +6,13 @@
  * either, so the plugin's scheduled events would wait forever. This runner does the work at the
  * end of ordinary requests instead, after the response has been sent where the server allows it
  * (PHP-FPM, LiteSpeed), so nobody waits for it:
- * - files a request wrote are copied to the storage at its end and verified: the files of an
- *   attachment it saved (the original, its sizes, a theme's WebP/AVIF copies), a size Timber cut
- *   on a page view, a file a theme announced with simple_storage_queue_offload(). Exactly these
- *   paths, and only those that exist. Their local copies go with the folder's scheduled run once
- *   they have settled, since an optimizer may still be rewriting them;
+ * - files a request wrote go to the storage at its end, verified, and leave the disk: the files
+ *   of an attachment it saved (the original, its sizes, a theme's WebP/AVIF copies), a size
+ *   Timber cut on a page view, a file a theme announced with simple_storage_queue_offload().
+ *   Exactly these paths, and only those that exist. Where an image optimizer works in the
+ *   background they are only copied, and their local copies go with the folder's scheduled run
+ *   once they have settled;
+ * - storage folders the request's deletions left empty are removed at its end;
  * - due events of the plugin (offload of a folder, a retried remote deletion, a Timber size, the
  *   removal of storage folders left empty) run
  *   when WP-Cron is off, or when it has let them wait well past their time.
@@ -30,6 +32,9 @@ final class Simple_Storage_Runner {
 	private const MAX_EVENTS = 10;
 	private const BUDGET = 30;
 
+	/** After its response, a request waits this long for the job lock another one holds. */
+	private const LOCK_WAIT = 60;
+
 	/** Transient that keeps two requests from running the same due events. */
 	private const BUSY = 'simple_storage_runner';
 
@@ -39,11 +44,32 @@ final class Simple_Storage_Runner {
 	/** @var array<string, bool> Media paths this request may have written. */
 	private static array $paths = array();
 
+	/** @var array<int, bool> Attachments finished in this request from files earlier requests wrote. */
+	private static array $finished = array();
+
+	/** @var array<int, string> Their files, taken with the rest by take_written(). */
+	private static array $complete = array();
+
+	/** @var array<string, mixed>|null A fatal error of this request, seen before anything else ran. */
+	private static ?array $fatal = null;
+
+	/** No further folder is started after this time (a WP-CLI command's end). */
+	private static float $stop_at = INF;
+
 	/** When the cron cache was last read again from the database in this request. */
 	private static float $refreshed = 0.0;
 
 	public static function init(): void {
+		add_action( 'shutdown', array( self::class, 'note_fatal' ), PHP_INT_MIN );
 		add_action( 'shutdown', array( self::class, 'shutdown' ), PHP_INT_MAX );
+	}
+
+	/** Any diagnostic a later shutdown callback raises would replace the fatal error_get_last() reports. */
+	public static function note_fatal(): void {
+		$error = error_get_last();
+		if ( is_array( $error ) && in_array( $error['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR ), true ) ) {
+			self::$fatal = $error;
+		}
 	}
 
 	/** An upload or a metadata change: the attachment's files go out at the end of this request. */
@@ -54,6 +80,15 @@ final class Simple_Storage_Runner {
 	/** A media file this request wrote (or may have written) goes out at the end of it. */
 	public static function queue_path( string $relative ): void {
 		self::$paths[ $relative ] = true;
+	}
+
+	/**
+	 * An attachment whose files earlier requests wrote (the browser made its sizes) is finished in
+	 * this one: all its files go out at the end of it.
+	 */
+	public static function queue_finished_attachment( int $attachment_id ): void {
+		self::$finished[ $attachment_id ] = true;
+		self::$attachments[ $attachment_id ] = true;
 	}
 
 	public static function cron_disabled(): bool {
@@ -74,18 +109,41 @@ final class Simple_Storage_Runner {
 	 * events other requests added meanwhile.
 	 *
 	 * @param array<int, mixed> $args
+	 * @return bool Whether this call scheduled it.
 	 */
-	public static function schedule_event( int $timestamp, string $hook, array $args ): void {
+	public static function schedule_event( int $timestamp, string $hook, array $args ): bool {
 		if ( microtime( true ) - self::$refreshed > 1 ) {
 			self::refresh_cron_cache();
 		}
-		if ( false === wp_next_scheduled( $hook, $args ) ) {
-			wp_schedule_single_event( $timestamp, $hook, $args );
-		}
+
+		return false === wp_next_scheduled( $hook, $args ) && true === wp_schedule_single_event( $timestamp, $hook, $args );
+	}
+
+	/**
+	 * Take an event off the schedule, deciding on a fresh copy of it (see schedule_event()).
+	 *
+	 * @param array<int, mixed> $args
+	 */
+	public static function clear_event( string $hook, array $args ): void {
+		// Always read again: a run may end within a second of the last read, and writing back that
+		// copy would drop events other requests added meanwhile.
+		self::refresh_cron_cache();
+		wp_clear_scheduled_hook( $hook, $args );
 	}
 
 	public static function shutdown(): void {
-		if ( wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) || wp_installing() ) {
+		if ( wp_doing_cron() || wp_installing() ) {
+			return;
+		}
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			// A command (wp media import, wp post delete) has nobody waiting for a response: its
+			// files and emptied folders are dealt with at its end. Due events stay with cron.
+			if ( null === self::$fatal ) {
+				// At most a minute after the command's own work; the folders' events take the rest.
+				self::$stop_at = microtime( true ) + MINUTE_IN_SECONDS;
+				self::run( self::cron_disabled(), (float) ( $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime( true ) ), 0 ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			}
+
 			return;
 		}
 
@@ -125,14 +183,14 @@ final class Simple_Storage_Runner {
 
 		// A request that died half-way may have left an upload without all its sizes; WordPress
 		// finishes them in a follow-up request from the original. The folder's run takes them later.
-		$error = error_get_last();
-		if ( is_array( $error ) && in_array( $error['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR ), true ) ) {
+		if ( null !== self::$fatal ) {
 			return;
 		}
 
 		$max_events = $can_finish ? self::MAX_EVENTS : ( $admin_page ? 1 : 0 );
 		$has_due    = $max_events > 0 && ! get_transient( self::BUSY ) && self::has_due_events( self::cron_disabled() );
-		if ( empty( $written ) && ! $has_due ) {
+		$pruned     = Simple_Storage_Prune::take_queued();
+		if ( empty( $written ) && empty( $pruned ) && ! $has_due ) {
 			return;
 		}
 
@@ -147,9 +205,16 @@ final class Simple_Storage_Runner {
 			}
 		}
 
-		self::copy_written( $written, $request_start );
+		// The response is out and the request is an uploader's own: the work may wait its turn for
+		// the lock (another upload of the same person is usually moving). Anyone else's request
+		// leaves it to the folder's event at once, so a busy site never queues workers on the lock.
+		$until = microtime( true ) + ( $can_finish && $uploader ? self::LOCK_WAIT : 0 );
+		self::copy_written( $written, $request_start, $until );
+		Simple_Storage_Prune::run_now( $pruned, max( 0.0, $until - microtime( true ) ) );
 		if ( $has_due ) {
 			self::run_due( self::cron_disabled(), $max_events );
+			// A retried deletion among them may have emptied a folder.
+			Simple_Storage_Prune::run_now( Simple_Storage_Prune::take_queued() );
 		}
 		Simple_Storage_Media::release_holds_after_request();
 	}
@@ -161,8 +226,10 @@ final class Simple_Storage_Runner {
 	 */
 	public static function run( bool $cron_disabled, float $request_start, int $max_events = self::MAX_EVENTS ): void {
 		self::copy_written( self::take_written(), $request_start );
+		Simple_Storage_Prune::run_now( Simple_Storage_Prune::take_queued() );
 		if ( $max_events > 0 && ! get_transient( self::BUSY ) ) {
 			self::run_due( $cron_disabled, $max_events );
+			Simple_Storage_Prune::run_now( Simple_Storage_Prune::take_queued() );
 		}
 		Simple_Storage_Media::release_holds_after_request();
 	}
@@ -171,10 +238,15 @@ final class Simple_Storage_Runner {
 	private static function take_written(): array {
 		$paths = array_keys( self::$paths );
 		foreach ( array_keys( self::$attachments ) as $attachment_id ) {
-			$paths = array_merge( $paths, Simple_Storage_Media::upload_files( (int) $attachment_id ) );
+			$files = Simple_Storage_Media::upload_files( (int) $attachment_id );
+			$paths = array_merge( $paths, $files );
+			if ( isset( self::$finished[ $attachment_id ] ) ) {
+				self::$complete = array_merge( self::$complete, $files );
+			}
 		}
 		self::$paths       = array();
 		self::$attachments = array();
+		self::$finished    = array();
 
 		return array_values(
 			array_filter(
@@ -197,18 +269,33 @@ final class Simple_Storage_Runner {
 		return $by_month;
 	}
 
-	/** @param array<int, string> $written */
-	private static function copy_written( array $written, float $request_start ): void {
+	/**
+	 * @param array<int, string> $written
+	 * @param float              $until   Until when to wait for the job lock another request holds.
+	 */
+	private static function copy_written( array $written, float $request_start, float $until = 0.0 ): void {
+		$complete       = array_flip( self::$complete );
+		self::$complete = array();
 		if ( empty( $written ) ) {
 			return;
 		}
 
 		ignore_user_abort( true );
-		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( function_exists( 'set_time_limit' ) && 'cli' !== PHP_SAPI ) {
+			@set_time_limit( 120 + (int) max( 0, $until - microtime( true ) ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 		foreach ( self::by_month( $written ) as $dir => $list ) {
-			Simple_Storage_Media::offload_paths_now( (string) $dir, $list, $request_start );
+			if ( microtime( true ) > self::$stop_at ) {
+				break;
+			}
+			// Files of an attachment finished here were written by earlier requests, and complete.
+			$earlier = array_values( array_filter( $list, static fn( string $path ): bool => isset( $complete[ $path ] ) ) );
+			$now     = array_values( array_diff( $list, $earlier ) );
+			foreach ( array( array( $now, $request_start ), array( $earlier, 0.0 ) ) as list( $paths, $start ) ) {
+				if ( ! empty( $paths ) ) {
+					Simple_Storage_Media::offload_paths_now( (string) $dir, $paths, $start, max( 0.0, $until - microtime( true ) ) );
+				}
+			}
 		}
 	}
 
