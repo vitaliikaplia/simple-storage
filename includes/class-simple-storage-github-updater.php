@@ -100,7 +100,7 @@ final class Simple_Storage_GitHub_Updater {
 			'download_link' => $remote_data['package'] ?? $this->get_package_url(),
 			'sections'      => array(
 				'description' => '<p>' . esc_html__( 'Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly.', 'simple-storage' ) . '</p>',
-				'changelog'   => '<p>' . esc_html__( 'Version 0.3.0 works without WP-Cron: new uploads go to the storage at the end of the upload request, sizes that Timber or a theme cuts on page views follow at the end of that request, and the plugin runs its own delayed work at the end of ordinary requests when WP-Cron is off. Themes can announce files they write with simple_storage_queue_offload().', 'simple-storage' ) . '</p>',
+				'changelog'   => '<p>' . esc_html__( 'Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) now deletes its files in the storage too. New files are copied to the storage at the end of the request that wrote them, and their local copies go a minute or two later, once background image optimizers are done with them. Since 0.3.0 the plugin works without WP-Cron.', 'simple-storage' ) . '</p>',
 			),
 		);
 	}

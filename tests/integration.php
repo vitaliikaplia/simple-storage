@@ -145,6 +145,13 @@ function ss_remote_only( string $path ): bool {
 	return ! file_exists( Simple_Storage_Paths::local( $path ) ) && is_file( ss_remote( $path ) ) && null !== $row && 1 === $row['remote'] && 0 === $row['local'] && 0 === $row['conflict'];
 }
 
+/** Copied to the storage and verified, with the local copy still in place. */
+function ss_copied( string $path ): bool {
+	$row = Simple_Storage_Index::get( $path );
+
+	return is_file( Simple_Storage_Paths::local( $path ) ) && is_file( ss_remote( $path ) ) && null !== $row && 1 === $row['remote'] && 1 === $row['verified'];
+}
+
 /** Forget a local copy, as if the offload had removed it. */
 function ss_drop_local( string $path ): void {
 	@unlink( Simple_Storage_Paths::local( $path ) );
@@ -530,8 +537,9 @@ try {
 
 	ss_section( 'Background work without WP-Cron' );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
-	// An upload: its files are written by this request and go out at its end.
-	$ss_request_start = time() - 5;
+	// An upload: its files, written by this request, are copied at its end; the local copies go
+	// with the folder's run once settled (an optimizer may still be rewriting them meanwhile).
+	$ss_request_start = time() - 600;
 	ss_image( $ss_uploads . '/2024/05/runner.jpg', 640, 480, 'jpg' );
 	$ss_runner = wp_insert_attachment(
 		array(
@@ -544,16 +552,27 @@ try {
 	wp_update_attachment_metadata( $ss_runner, wp_generate_attachment_metadata( $ss_runner, $ss_uploads . '/2024/05/runner.jpg' ) );
 	$ss_runner_files = Simple_Storage_Media::attachment_files( $ss_runner );
 	foreach ( $ss_runner_files as $ss_path ) {
-		touch( $ss_uploads . '/' . $ss_path, time() );
+		touch( $ss_uploads . '/' . $ss_path, time() - 300 );
 	}
-	ss_write( $ss_uploads . '/2024/05/runner-jpg.webp', random_bytes( 900 ), time() );
+	ss_write( $ss_uploads . '/2024/05/runner-jpg.webp', random_bytes( 900 ), time() - 300 );
 	// A fresh file another request wrote meanwhile: it may still be in the making there.
 	ss_write( $ss_uploads . '/2024/05/elsewhere.bin', random_bytes( 700 ), time() );
+	// A queued path this request did not change (older than the request) is not taken either.
+	ss_write( $ss_uploads . '/2024/05/untouched.bin', random_bytes( 300 ), $ss_request_start - 60 );
+	Simple_Storage_Runner::queue_path( '2024/05/untouched.bin' );
 	Simple_Storage_Media::schedule_for_attachment( $ss_runner );
 	Simple_Storage_Runner::run( true, (float) $ss_request_start );
-	ss_check( count( $ss_runner_files ) === count( array_filter( $ss_runner_files, 'ss_remote_only' ) ) && ss_remote_only( '2024/05/runner-jpg.webp' ), "an upload and the theme's WebP copy go to the storage at the end of the upload request", $ss_runner_files );
-	ss_check( is_file( $ss_uploads . '/2024/05/elsewhere.bin' ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) ), "another request's new file is never taken, and the folder stays scheduled" );
+	ss_check( count( $ss_runner_files ) === count( array_filter( $ss_runner_files, 'ss_copied' ) ) && ss_copied( '2024/05/runner-jpg.webp' ), "an upload and the theme's WebP copy are copied and verified at the end of the upload request", $ss_runner_files );
+	ss_check( is_file( $ss_uploads . '/2024/05/elsewhere.bin' ) && null === Simple_Storage_Index::get( '2024/05/elsewhere.bin' ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) ), "another request's new file is never taken, and the folder stays scheduled" );
+	ss_check( ! file_exists( ss_remote( '2024/05/untouched.bin' ) ), 'a queued file older than the request is left to the folder run' );
+	Simple_Storage_Media::offload_dir( '2024/05' );
+	ss_check( count( $ss_runner_files ) === count( array_filter( $ss_runner_files, 'ss_remote_only' ) ) && ss_remote_only( '2024/05/runner-jpg.webp' ) && is_file( $ss_uploads . '/2024/05/elsewhere.bin' ), "the folder's run removes the settled local copies, the fresh stranger stays" );
 	@unlink( $ss_uploads . '/2024/05/elsewhere.bin' );
+	foreach ( array( '2024/05/untouched.bin' ) as $ss_path ) {
+		@unlink( $ss_uploads . '/' . $ss_path );
+		@unlink( ss_remote( $ss_path ) );
+		Simple_Storage_Index::delete_path( $ss_path );
+	}
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 
 	// A transfer that fails at the end of the request is retried later.
@@ -570,12 +589,56 @@ try {
 	ss_check( ss_remote_only( '2025/01/refused-now.bin' ), 'and goes out on the retry' );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 
-	// A file a theme writes itself, announced through the public function.
-	ss_write( $ss_uploads . '/2025/01/theme-cut.webp', random_bytes( 800 ), time() );
+	// A file a theme writes itself, announced through the public function; also in a subfolder.
+	ss_write( $ss_uploads . '/2025/01/theme-cut.webp', random_bytes( 800 ), time() - 300 );
+	ss_write( $ss_uploads . '/2025/01/sub/nested-cut.webp', random_bytes( 700 ), time() - 300 );
 	simple_storage_queue_offload( $ss_uploads . '/2025/01/theme-cut.webp' );
-	Simple_Storage_Runner::run( true, (float) ( time() - 2 ) );
-	ss_check( ss_remote_only( '2025/01/theme-cut.webp' ), 'simple_storage_queue_offload() sends a file a theme just wrote to the storage at the end of the request' );
+	simple_storage_queue_offload( '2025/01/sub/nested-cut.webp' );
+	Simple_Storage_Runner::run( true, (float) ( time() - 600 ) );
+	ss_check( ss_copied( '2025/01/theme-cut.webp' ) && ss_copied( '2025/01/sub/nested-cut.webp' ), 'simple_storage_queue_offload() copies a file a theme just wrote at the end of the request, in a subfolder too' );
+	ss_check( false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) ) && false === wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01/sub' ) ), 'a file in a subfolder schedules the run of its month folder' );
+	Simple_Storage_Runner::schedule_event( time() + 90, Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) );
+	Simple_Storage_Media::offload_dir( '2025/01' );
+	ss_check( ss_remote_only( '2025/01/theme-cut.webp' ) && ss_remote_only( '2025/01/sub/nested-cut.webp' ), 'and the folder run removes their local copies' );
 	ss_check( false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) ), "the folder's event stays for files other requests may still add" );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+
+	// Who waits for what: the end of a request decides by how it can finish and who made it.
+	ss_write( $ss_uploads . '/2025/01/visitor.webp', random_bytes( 600 ), time() - 300 );
+	wp_schedule_single_event( time() - 400, Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) );
+	Simple_Storage_Runner::queue_path( '2025/01/visitor.webp' );
+	Simple_Storage_Runner::finish_request( false, false, false, (float) ( time() - 600 ) );
+	ss_check( null === Simple_Storage_Index::get( '2025/01/visitor.webp' ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) ), "a visitor's request that cannot finish early does nothing but schedule the folder" );
+	Simple_Storage_Runner::queue_path( '2025/01/visitor.webp' );
+	Simple_Storage_Runner::finish_request( false, true, false, (float) ( time() - 600 ) );
+	ss_check( ss_copied( '2025/01/visitor.webp' ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) ), "an uploader's AJAX or REST request copies its own file and runs no due events" );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	// Overdue past the grace period a working WP-Cron gets.
+	wp_schedule_single_event( time() - 400, Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) );
+	wp_schedule_single_event( time() - 300, Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) );
+	Simple_Storage_Runner::finish_request( false, true, true, (float) time() );
+	ss_check( 1 === count( Simple_Storage_Runner::due_events( false ) ) && false === wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2024/05' ) ), 'a plain admin page load that cannot finish early runs one due event', Simple_Storage_Runner::due_events( false ) );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	// Timber announces a size it may never write (its source is missing): nothing happens.
+	Simple_Storage_Runner::queue_path( '2025/01/never-written-300x0-c-default.webp' );
+	Simple_Storage_Runner::finish_request( true, true, false, (float) ( time() - 600 ) );
+	ss_check( false === wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) ) && null === Simple_Storage_Index::get( '2025/01/never-written-300x0-c-default.webp' ), 'a size that was never written schedules and copies nothing' );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+
+	// Another request added an event after this one cached the schedule: scheduling reads it again
+	// first, or writing the schedule back would drop that event.
+	$ss_cron = _get_cron_array();
+	$ss_cron[ time() + 3000 ]['simple_storage_elsewhere'][ md5( serialize( array() ) ) ] = array(
+		'schedule' => false,
+		'args'     => array(),
+	);
+	$ss_cron['version'] = 2;
+	$GLOBALS['wpdb']->update( $GLOBALS['wpdb']->options, array( 'option_value' => maybe_serialize( $ss_cron ) ), array( 'option_name' => 'cron' ) );
+	( new ReflectionProperty( Simple_Storage_Runner::class, 'refreshed' ) )->setValue( null, 0.0 );
+	Simple_Storage_Runner::schedule_event( time() + 3600, Simple_Storage_Media::OFFLOAD_HOOK, array( '2031/01' ) );
+	Simple_Storage_Runner::refresh_cron_cache();
+	ss_check( false !== wp_next_scheduled( 'simple_storage_elsewhere' ) && false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2031/01' ) ), "scheduling keeps an event another request added meanwhile" );
+	wp_unschedule_hook( 'simple_storage_elsewhere' );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 
 	// Due events of the plugin run without WP-Cron.
@@ -601,8 +664,22 @@ try {
 	wp_schedule_single_event( time() - 5, Simple_Storage_Media::DELETE_HOOK, array( '2025/01/orphan.bin', 1 ) );
 	Simple_Storage_Runner::run( true, 0.0 );
 	ss_check( ! file_exists( ss_remote( '2025/01/orphan.bin' ) ) && false === wp_next_scheduled( Simple_Storage_Media::DELETE_HOOK, array( '2025/01/orphan.bin', 1 ) ), 'a retried remote deletion runs without WP-Cron' );
+	// A file brought back is held while the request works with it, and a while after.
+	$ss_hold_left = static fn(): int => (int) get_option( '_transient_timeout_simple_storage_hold_' . md5( '2025/01/late.bin' ) ) - time();
+	Simple_Storage_Media::release_hold( '2025/01/late.bin' );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	ss_check( Simple_Storage_Media::ensure_local( '2025/01/late.bin' ) && Simple_Storage_Media::is_held( '2025/01/late.bin' ) && $ss_hold_left() > 300, 'a file brought back is held from the start, for as long as a request may run', $ss_hold_left() );
+	ss_check( false !== wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2025/01' ) ), 'and its folder is scheduled to take it out again' );
+	Simple_Storage_Media::release_holds_after_request();
+	Simple_Storage_Media::offload_dir( '2025/01' );
+	ss_check( is_file( $ss_uploads . '/2025/01/late.bin' ) && Simple_Storage_Media::is_held( '2025/01/late.bin' ) && $ss_hold_left() <= 95, 'and still after the request ends, for the usual delay from then', $ss_hold_left() );
+	Simple_Storage_Media::release_hold( '2025/01/late.bin' );
+	ss_check( Simple_Storage_Media::ensure_local( '2025/01/late.bin' ) && Simple_Storage_Media::is_held( '2025/01/late.bin' ) && $ss_hold_left() > 300, 'a file brought back earlier is held again when code asks for it again' );
+	Simple_Storage_Media::release_holds_after_request();
+	ss_offload( '2025/01', array( '2025/01/late.bin' ) );
 	wp_delete_attachment( $ss_runner, true );
-	foreach ( array( '2024/05/runner-jpg.webp', '2025/01/late.bin', '2025/01/later.bin', '2025/01/theme-cut.webp', '2025/01/refused-now.bin' ) as $ss_path ) {
+	foreach ( array( '2024/05/runner-jpg.webp', '2025/01/late.bin', '2025/01/later.bin', '2025/01/theme-cut.webp', '2025/01/refused-now.bin', '2025/01/sub/nested-cut.webp', '2025/01/visitor.webp' ) as $ss_path ) {
+		@unlink( $ss_uploads . '/' . $ss_path );
 		@unlink( ss_remote( $ss_path ) );
 		Simple_Storage_Index::delete_path( $ss_path );
 	}
@@ -719,6 +796,50 @@ try {
 	wp_delete_attachment( $ss_shared['uk'], true );
 	ss_check( ! file_exists( ss_remote( '2025/01/video.mp4' ) ) && null === Simple_Storage_Index::get( '2025/01/video.mp4' ), 'deleting the last attachment that uses it deletes it' );
 	unset( $ss_expected['2025/01/video.mp4'] );
+
+	// Language copies deleted together, the way WP-LOC does it: from delete_attachment of one copy
+	// (after this plugin's own callback) it deletes the others while the first one still exists,
+	// with wp_delete_file vetoed meanwhile.
+	ss_image( $ss_uploads . '/2025/01/twin.jpg', 40, 30, 'jpg' );
+	ss_write( $ss_uploads . '/2025/01/twin-jpg.webp', random_bytes( 300 ) );
+	ss_offload( '2025/01', array( '2025/01/twin.jpg', '2025/01/twin-jpg.webp' ) );
+	ss_check( ss_remote_only( '2025/01/twin.jpg' ) && ss_remote_only( '2025/01/twin-jpg.webp' ), 'the translated image and its WebP copy live only in the storage' );
+	$ss_twins = array();
+	foreach ( array( 'uk', 'en' ) as $ss_lang ) {
+		$ss_twins[] = $ss_twin = wp_insert_attachment(
+			array(
+				'post_mime_type' => 'image/jpeg',
+				'post_title'     => 'Simple Storage twin ' . $ss_lang,
+				'post_status'    => 'inherit',
+			),
+			'2025/01/twin.jpg'
+		);
+		update_post_meta( $ss_twin, '_wp_attached_file', '2025/01/twin.jpg' );
+		update_post_meta( $ss_twin, '_wp_attachment_metadata', array( 'width' => 40, 'height' => 30, 'file' => '2025/01/twin.jpg', 'sizes' => array() ) );
+	}
+	$ss_cascading = false;
+	$ss_cascade   = static function ( $id ) use ( &$ss_cascading, $ss_twins ) {
+		if ( $ss_cascading ) {
+			return;
+		}
+		$ss_cascading = true;
+		foreach ( $ss_twins as $ss_twin ) {
+			if ( (int) $id !== $ss_twin ) {
+				wp_delete_attachment( $ss_twin, true );
+			}
+		}
+		$ss_cascading = false;
+	};
+	$ss_cascade_veto = static function ( $file ) use ( &$ss_cascading ) {
+		return $ss_cascading ? '' : $file;
+	};
+	add_action( 'delete_attachment', $ss_cascade );
+	add_filter( 'wp_delete_file', $ss_cascade_veto );
+	wp_delete_attachment( $ss_twins[0], true );
+	remove_action( 'delete_attachment', $ss_cascade );
+	remove_filter( 'wp_delete_file', $ss_cascade_veto );
+	ss_check( null === get_post( $ss_twins[0] ) && null === get_post( $ss_twins[1] ), 'both language copies are deleted' );
+	ss_check( ! array_filter( array( '2025/01/twin.jpg', '2025/01/twin-jpg.webp' ), static fn( $p ) => file_exists( ss_remote( $p ) ) || null !== Simple_Storage_Index::get( $p ) ), 'deleting all language copies together deletes their files and WebP copy in the storage' );
 	wp_delete_attachment( $ss_edit, true );
 	foreach ( array( '2024/05/edit-me.jpg', '2024/05/edit-me-150x150.jpg' ) as $ss_path ) {
 		unset( $ss_expected[ $ss_path ] );
@@ -952,10 +1073,12 @@ try {
 		\Timber\ImageHelper::resize( $ss_t_url, 50, 50 );
 		ss_check( 0 === ( Simple_Storage_Index::get( '2024/05/timber-50x50-c-default.jpg' )['local'] ?? -1 ), "but never another attachment's file that only looks like a Timber size" );
 		@unlink( $ss_uploads . '/2024/05/timber-50x50-c-default.jpg' );
+		Simple_Storage_Media::release_holds_after_request();
+		Simple_Storage_Media::release_hold( '2024/05/timber.jpg' );
 		$ss_start = time() - 1;
 		\Timber\ImageHelper::resize( $ss_t_url, 120 );
 		Simple_Storage_Runner::run( true, (float) $ss_start );
-		ss_check( ss_remote_only( '2024/05/timber-120x0-c-default.jpg' ) && is_file( $ss_uploads . '/2024/05/timber.jpg' ), 'a size Timber cuts on a page view goes to the storage at the end of that request; the original brought back stays for the next sizes' );
+		ss_check( ss_copied( '2024/05/timber-120x0-c-default.jpg' ) && is_file( $ss_uploads . '/2024/05/timber.jpg' ) && Simple_Storage_Media::is_held( '2024/05/timber.jpg' ), 'a size Timber cuts on a page view is copied at the end of that request; the original brought back is held for the next sizes' );
 		Simple_Storage_Timber::forget_copies( array(), $ss_timber_ids['timber.jpg'] );
 		ss_check( ! file_exists( ss_remote( '2024/05/timber-300x0-c-default.jpg' ) ) && is_file( ss_remote( '2024/05/timber.jpg' ) ) && is_file( ss_remote( '2024/05/timber-jpg-300x0-c-default.webp' ) ) && is_file( ss_remote( '2024/05/timber-50x50-c-default.jpg' ) ), 'new metadata deletes Timber sizes of the image in the storage, as Timber does on disk' );
 		$ss_timber_files[] = '2024/05/timber-200x0-c-default.jpg';

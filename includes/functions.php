@@ -92,8 +92,9 @@ function simple_storage_file_exists( $target ): bool {
 
 /**
  * Tell the plugin that code has just written a media file (a size cut on a page view, a WebP
- * copy): it goes to the storage at the end of the request, and with the folder's scheduled run
- * should that request not get to it. Does nothing unless new files follow into the storage.
+ * copy): it is copied to the storage at the end of the request, and its local copy goes with the
+ * folder's scheduled run, which also takes the file should that request not get to it. Does
+ * nothing unless new files follow into the storage.
  *
  * @param string $target Absolute path, uploads URL or uploads-relative path of the new file.
  */
@@ -103,7 +104,6 @@ function simple_storage_queue_offload( $target ): void {
 		return;
 	}
 
-	Simple_Storage_Media::schedule( dirname( $relative ) );
 	Simple_Storage_Runner::queue_path( $relative );
 }
 

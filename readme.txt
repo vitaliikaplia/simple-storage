@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Simple Storage frees the disk of a WordPress hosting by moving the media files t
 * Move everything to the storage: copy → verify → enable serving from the storage → check serving end to end → delete local copies. A local file is deleted only after its remote copy has been verified (the size through the API and, in strict mode, the default, the SHA-256 of a download from the public address), after a probe file with the same extension that exists only in the storage was actually served at its uploads address, and after the storage confirmed the copy once more right before the delete. Files of an extension that fails the check stay local.
 * Return everything to WordPress: download into a temporary file → verify → move into place with the original modification time → delete from the storage → disable serving from the storage.
 * The jobs run in short AJAX steps with live progress and can be paused and continued; a closed tab only pauses them. The same jobs are available through WP-CLI.
-* New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
+* New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. They are copied and verified right away; their local copies go a minute or two later, once image optimizers that work in the background are done with them. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
 * Image editing keeps working for files that live only in the storage: crop, rotate, flip, scale and "Restore original image" in the classic editor, the Customizer crop and the crop of the Image block bring the original back first, and the edited files then follow into the storage.
 * Thumbnail regeneration too: `wp media regenerate` and Regenerate Thumbnails get the original back; the new sizes replace the old ones in the storage, and old sizes that are no longer generated are deleted there as well (unless `--skip-delete`), never an original or another attachment's file. The automatic offload waits while a regeneration runs. With `--only-missing`, sizes that live only in the storage count as missing for WP-CLI, so such attachments are regenerated in full.
 * Timber's on-the-fly resizing (`|resize` in Twig) uses a size from the storage without the original; a size that does not exist yet is cut in the background from the original brought back, and both go out again. Deleting an attachment deletes Timber's sizes and WebP/AVIF copies kept next to the image (`photo-jpg.webp`) in the storage too.
@@ -62,6 +62,13 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.3.1 =
+* Deleting an attachment whose translations share its file (WP-LOC deletes all language copies together) now deletes the files in the storage once the last copy is gone; before, the files stayed in the storage.
+* At the end of a request new files are only copied to the storage and verified; their local copies go with the folder's run a minute or two later, so image optimizers that work in the background (Smush, Imagify, EWWW, ShortPixel, Converter for Media) never lose a file they are still rewriting.
+* An original brought back from the storage stays local for as long as the request that uses it may run, and for 90 seconds after it; Timber keeps it too while it cuts sizes.
+* Where the response cannot be sent first (Apache mod_php, mod_fcgid), a logged-in user's request copies only its own files and runs at most one delayed task, on plain admin page loads only; visitors' requests leave the work for later.
+* Sizes Timber announces but never writes no longer start any work at the end of a page view; scheduling reads the schedule again first, so events other requests added are never dropped; files in subfolders of a month folder are taken too.
 
 = 0.3.0 =
 * Works without WP-Cron (DISABLE_WP_CRON with no server cron): new uploads go to the storage at the end of the upload request, sizes cut on page views (Timber, or a theme through simple_storage_queue_offload()) at the end of that request, and the plugin's delayed work (folder offloads, retried remote deletions, background Timber sizes) runs at the end of ordinary requests, after the response where the server allows it.

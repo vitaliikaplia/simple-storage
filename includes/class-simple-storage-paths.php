@@ -63,6 +63,11 @@ final class Simple_Storage_Paths {
 		return 1 === preg_match( '#^[0-9]{4}/[0-9]{2}$#', $relative );
 	}
 
+	/** The "YYYY/MM" folder a media path belongs to, subfolders included. */
+	public static function month_dir( string $relative ): string {
+		return implode( '/', array_slice( explode( '/', $relative ), 0, 2 ) );
+	}
+
 	/** Lowercase file extension of a media path, or "" when the name has none. */
 	public static function extension( string $relative ): string {
 		return strtolower( (string) pathinfo( $relative, PATHINFO_EXTENSION ) );

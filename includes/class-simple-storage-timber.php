@@ -7,9 +7,9 @@
  * the full-size URL, and the sizes it cut before are never used again. The Twig "resize" filter
  * is taken over here so that
  * - a size that exists (locally or in the storage) is used without the original;
- * - a size that exists nowhere is cut in the background (WP-Cron) from the original brought back
- *   from the storage, and both go out again with the automatic offload; until then the page
- *   gets the full-size URL, as Timber itself would give it.
+ * - a size that exists nowhere is cut in the background (a scheduled event) from the original
+ *   brought back from the storage, and both go out again with the automatic offload; until then
+ *   the page gets the full-size URL, as Timber itself would give it.
  * Code that calls Timber\ImageHelper::resize() directly can use simple_storage_timber_resize().
  */
 
@@ -171,11 +171,10 @@ final class Simple_Storage_Timber {
 			return $path;
 		}
 
-		// Timber is about to cut this file on a page view: it goes to the storage at the end of
-		// the request (and with the folder's scheduled run, should that request not get to it).
+		// Timber may cut this file on a page view; if it does, the file goes to the storage at the
+		// end of the request. Only a candidate here: Timber gives up when the source is missing.
 		$written = Simple_Storage_Paths::relative_from_local( $path );
 		if ( null !== $written && Simple_Storage_Media::auto_enabled() ) {
-			Simple_Storage_Media::schedule( dirname( $written ) );
 			Simple_Storage_Runner::queue_path( $written );
 		}
 
@@ -185,6 +184,11 @@ final class Simple_Storage_Timber {
 
 		$source = Simple_Storage_Paths::relative_from_url( $source_url );
 		$target = Simple_Storage_Paths::relative_from_local( $path );
+		if ( null !== $source && is_file( Simple_Storage_Paths::local( $source ) ) && self::in_storage( $source ) ) {
+			// An original brought back from the storage that Timber is about to read: keep it. Timber
+			// asks for this path right before every read, so this covers direct calls too.
+			Simple_Storage_Media::keep_local( $source );
+		}
 		// Only Timber's own resized copies: other operations (retina "@2x", tojpg, towebp) write
 		// names that can be other attachments' files, which must stay protected conflicts.
 		if ( null !== $source && null !== $target && self::is_copy_of( $target, $source ) && is_file( Simple_Storage_Paths::local( $source ) )
@@ -216,10 +220,7 @@ final class Simple_Storage_Timber {
 			return;
 		}
 
-		$args = array( $source, $w, $h, $crop );
-		if ( false === wp_next_scheduled( self::GENERATE_HOOK, $args ) ) {
-			wp_schedule_single_event( time(), self::GENERATE_HOOK, $args );
-		}
+		Simple_Storage_Runner::schedule_event( time(), self::GENERATE_HOOK, array( $source, $w, $h, $crop ) );
 	}
 
 	private static function failed_key( string $target ): string {
@@ -244,7 +245,7 @@ final class Simple_Storage_Timber {
 		$lock = Simple_Storage_Jobs::is_active() ? null : Simple_Storage_Jobs::lock();
 		if ( null === $lock ) {
 			// A job or an offload is changing files right now.
-			wp_schedule_single_event( time() + 5 * MINUTE_IN_SECONDS, self::GENERATE_HOOK, $args );
+			Simple_Storage_Runner::schedule_event( time() + 5 * MINUTE_IN_SECONDS, self::GENERATE_HOOK, $args );
 
 			return;
 		}

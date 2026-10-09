@@ -35,11 +35,23 @@ final class Simple_Storage_Media {
 	 */
 	private static array $before = array();
 
+	/**
+	 * Remote copies of attachments deleted in this request whose file another attachment still
+	 * used at that moment, to be deleted once that is no longer so.
+	 *
+	 * @var array<int, array{file: string, paths: array<int, string>}>
+	 */
+	private static array $deferred_deletes = array();
+
+	/** @var array<string, bool> Files this request brought back or worked with, held local. */
+	private static array $in_use = array();
+
 	public static function init(): void {
 		add_action( self::OFFLOAD_HOOK, array( self::class, 'offload_dir' ) );
 		add_action( self::DELETE_HOOK, array( self::class, 'retry_delete' ), 10, 2 );
 		add_filter( 'wp_unique_filename', array( self::class, 'unique_filename' ), 10, 3 );
 		add_action( 'delete_attachment', array( self::class, 'delete_attachment' ) );
+		add_action( 'deleted_post', array( self::class, 'attachment_deleted' ) );
 		add_filter( 'wp_delete_file', array( self::class, 'delete_file' ), 99 );
 		add_filter( 'load_image_to_edit_path', array( self::class, 'load_image_to_edit_path' ), 10, 3 );
 		add_filter( 'rest_request_before_callbacks', array( self::class, 'before_rest_edit' ), 10, 3 );
@@ -119,14 +131,7 @@ final class Simple_Storage_Media {
 	}
 
 	public static function schedule( string $dir, int $delay = self::DELAY ): void {
-		if ( did_action( 'shutdown' ) ) {
-			// Late in a long request the cached schedule is stale; writing it back would drop
-			// events other requests added meanwhile.
-			Simple_Storage_Runner::refresh_cron_cache();
-		}
-		if ( false === wp_next_scheduled( self::OFFLOAD_HOOK, array( $dir ) ) ) {
-			wp_schedule_single_event( time() + $delay, self::OFFLOAD_HOOK, array( $dir ) );
-		}
+		Simple_Storage_Runner::schedule_event( time() + $delay, self::OFFLOAD_HOOK, array( $dir ) );
 	}
 
 	/** Cron: move settled local files of one YYYY/MM folder to the storage. */
@@ -135,9 +140,11 @@ final class Simple_Storage_Media {
 	}
 
 	/**
-	 * At the end of a request: move the files this request wrote — exactly these paths, complete
-	 * by then. Everything else in the folder (files of requests still running, an original brought
-	 * back to cut a size) waits for the folder's scheduled run and its one-minute rule.
+	 * At the end of a request: copy the files this request wrote — exactly these paths, complete
+	 * by then — to the storage and verify them. Their local copies go with the folder's scheduled
+	 * run once they have settled for a minute: an optimizer the upload started may still be
+	 * rewriting them, and that run uploads a rewritten file again instead of taking it for a
+	 * stranger. Everything else in the folder waits for that run as well.
 	 *
 	 * @param array<int, string> $paths
 	 */
@@ -169,16 +176,30 @@ final class Simple_Storage_Media {
 		return array_values( array_unique( $paths ) );
 	}
 
-	/** Keep a file brought back from the storage local for a while: others may be using it. */
-	private static function hold( string $relative ): void {
-		set_transient( 'simple_storage_hold_' . md5( $relative ), 1, self::DELAY );
+	/**
+	 * A file brought back from the storage stays local while this request works with it and for
+	 * a while after (others may be using it too): the hold lasts as long as a request may run, and
+	 * counts the usual delay from the end of this one.
+	 */
+	public static function keep_local( string $relative ): void {
+		$limit = (int) ini_get( 'max_execution_time' );
+		set_transient( 'simple_storage_hold_' . md5( $relative ), 1, self::DELAY + max( $limit, 300 ) );
+		self::$in_use[ $relative ] = true;
+	}
+
+	/** End of a request: the files it kept local are held for the usual delay from now. */
+	public static function release_holds_after_request(): void {
+		foreach ( array_keys( self::$in_use ) as $relative ) {
+			set_transient( 'simple_storage_hold_' . md5( (string) $relative ), 1, self::DELAY );
+		}
+		self::$in_use = array();
 	}
 
 	public static function release_hold( string $relative ): void {
 		delete_transient( 'simple_storage_hold_' . md5( $relative ) );
 	}
 
-	private static function is_held( string $relative ): bool {
+	public static function is_held( string $relative ): bool {
 		return (bool) get_transient( 'simple_storage_hold_' . md5( $relative ) );
 	}
 
@@ -227,7 +248,7 @@ final class Simple_Storage_Media {
 			foreach ( array_unique( $only ) as $relative ) {
 				$local = Simple_Storage_Paths::local( $relative );
 				clearstatcache( true, $local );
-				if ( dirname( $relative ) === $dir && Simple_Storage_Paths::is_media_path( $relative ) && is_file( $local ) ) {
+				if ( str_starts_with( $relative, $dir . '/' ) && Simple_Storage_Paths::is_media_path( $relative ) && is_file( $local ) ) {
 					$files[] = array(
 						'path'  => $relative,
 						'size'  => (int) filesize( $local ),
@@ -266,11 +287,15 @@ final class Simple_Storage_Media {
 				continue;
 			}
 
-			$result = self::offload_file( $client, $file );
+			// At the end of a request the file is only copied; its local copy goes with the
+			// folder's run, which keeps the one-minute rule.
+			$result = self::offload_file( $client, $file, null === $only );
 			Simple_Storage_Jobs::heartbeat();
 			if ( is_wp_error( $result ) ) {
 				$failed = true;
 				Simple_Storage_Log::error( $file['path'] . ': ' . $result->get_error_message() );
+			} elseif ( null !== $only ) {
+				$pending = true;
 			} elseif ( $result ) {
 				++$moved;
 			}
@@ -290,9 +315,10 @@ final class Simple_Storage_Media {
 
 	/**
 	 * @param array{path: string, size: int, mtime: int} $file
-	 * @return bool|WP_Error True when the local copy was replaced by a verified remote one.
+	 * @param bool $remove Whether to remove the local copy once the remote one is verified.
+	 * @return bool|WP_Error True when the remote copy is verified (and the local one removed).
 	 */
-	private static function offload_file( Simple_Storage_Client $client, array $file ) {
+	private static function offload_file( Simple_Storage_Client $client, array $file, bool $remove = true ) {
 		$row = Simple_Storage_Index::touch_local( $file['path'], $file['size'], $file['mtime'] );
 		if ( null === $row || $row['conflict'] ) {
 			return false;
@@ -317,6 +343,9 @@ final class Simple_Storage_Media {
 		if ( null === $row || ! $row['verified'] ) {
 			return false;
 		}
+		if ( ! $remove ) {
+			return true;
+		}
 		if ( ! Simple_Storage_Delivery::ensure_extension_verified( Simple_Storage_Paths::extension( $file['path'] ) ) ) {
 			// Serving this extension from the storage does not work: the file stays local.
 			return false;
@@ -339,8 +368,8 @@ final class Simple_Storage_Media {
 		$row = Simple_Storage_Index::has_remote_files() ? Simple_Storage_Index::get( $relative ) : null;
 		if ( is_file( Simple_Storage_Paths::local( $relative ) ) ) {
 			if ( null !== $row && $row['remote'] ) {
-				// Brought back earlier and still in use: it stays a while longer.
-				self::hold( $relative );
+				// Brought back earlier and in use again: it stays a while longer.
+				self::keep_local( $relative );
 			}
 
 			return true;
@@ -349,6 +378,9 @@ final class Simple_Storage_Media {
 		if ( null === $row || ! $row['remote'] || $row['conflict'] ) {
 			return false;
 		}
+
+		// Held from before the download lands, so no offload run takes it away in between.
+		self::keep_local( $relative );
 
 		$client = Simple_Storage_Client::create();
 		$result = is_wp_error( $client ) ? $client : Simple_Storage_Transfer::download( $client, $row );
@@ -360,10 +392,9 @@ final class Simple_Storage_Media {
 
 		/* translators: %s: file path. */
 		Simple_Storage_Log::info( sprintf( __( '%s was brought back from the storage to be processed locally.', 'simple-storage' ), $relative ) );
-		self::hold( $relative );
 		if ( self::auto_enabled() ) {
 			// The work may save its result elsewhere (or not at all): the folder goes out again.
-			self::schedule( implode( '/', array_slice( explode( '/', $relative ), 0, 2 ) ) );
+			self::schedule( Simple_Storage_Paths::month_dir( $relative ) );
 		}
 
 		return true;
@@ -815,12 +846,51 @@ final class Simple_Storage_Media {
 	 */
 	public static function delete_attachment( $attachment_id ): void {
 		$attachment_id = (int) $attachment_id;
-		if ( ! Simple_Storage_Index::has_remote_files() || self::shared_with_other_attachment( $attachment_id ) ) {
+		if ( ! Simple_Storage_Index::has_remote_files() ) {
 			return;
 		}
 
 		$files = self::attachment_files( $attachment_id );
-		self::delete_remote_copies( array_merge( $files, self::derived_files( $files, false ) ) );
+		$paths = array_merge( $files, self::derived_files( $files, false ) );
+		if ( self::shared_with_other_attachment( $attachment_id ) ) {
+			// Another attachment uses the same file — a translation. Multilingual plugins delete
+			// all language copies together, each while the others still exist (WP-LOC does it from
+			// delete_attachment), so the decision waits until this attachment is gone.
+			self::$deferred_deletes[ $attachment_id ] = array(
+				'file'  => (string) get_post_meta( $attachment_id, '_wp_attached_file', true ),
+				'paths' => $paths,
+			);
+
+			return;
+		}
+
+		self::delete_remote_copies( $paths );
+	}
+
+	/**
+	 * An attachment whose file was shared is gone: when no attachment uses the file any more (the
+	 * last language copy went with it), its remote copies go too.
+	 *
+	 * @param mixed $post_id
+	 */
+	public static function attachment_deleted( $post_id ): void {
+		$post_id = (int) $post_id;
+		$pending = self::$deferred_deletes[ $post_id ] ?? null;
+		unset( self::$deferred_deletes[ $post_id ] );
+		if ( null === $pending || '' === $pending['file'] || self::file_in_use( $pending['file'] ) ) {
+			return;
+		}
+
+		self::delete_remote_copies( $pending['paths'] );
+	}
+
+	/** Whether any attachment records this file as its main file. */
+	private static function file_in_use( string $file ): bool {
+		global $wpdb;
+
+		return (bool) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_wp_attached_file' AND meta_value = %s LIMIT 1", $file )
+		);
 	}
 
 	/**
@@ -861,7 +931,7 @@ final class Simple_Storage_Media {
 				// The attachment is going away either way; the index forgets the file now and a
 				// later retry deletes the remote copy, unless a new file has taken the name by then.
 				Simple_Storage_Log::error( $row['path'] . ': ' . $deleted->get_error_message() );
-				wp_schedule_single_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( (string) $row['path'], 1 ) );
+				Simple_Storage_Runner::schedule_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( (string) $row['path'], 1 ) );
 			}
 
 			if ( $row['local'] && is_file( Simple_Storage_Paths::local( $relative ) ) ) {
@@ -1087,7 +1157,7 @@ final class Simple_Storage_Media {
 			$deleted = is_wp_error( $client ) ? $client : $client->delete_file( Simple_Storage_Paths::remote( $relative ) );
 			if ( is_wp_error( $deleted ) ) {
 				Simple_Storage_Log::error( $relative . ': ' . $deleted->get_error_message() );
-				wp_schedule_single_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( $relative, 1 ) );
+				Simple_Storage_Runner::schedule_event( time() + 10 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( $relative, 1 ) );
 			}
 		}
 
@@ -1116,7 +1186,7 @@ final class Simple_Storage_Media {
 		}
 
 		if ( (int) $attempt < 3 ) {
-			wp_schedule_single_event( time() + 30 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( $relative, (int) $attempt + 1 ) );
+			Simple_Storage_Runner::schedule_event( time() + 30 * MINUTE_IN_SECONDS, self::DELETE_HOOK, array( $relative, (int) $attempt + 1 ) );
 		} else {
 			/* translators: %s: file path. */
 			Simple_Storage_Log::error( sprintf( __( 'Could not delete %s from the storage; delete it manually.', 'simple-storage' ), $relative ) );

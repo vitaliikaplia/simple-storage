@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.3.0\n"
+"Project-Id-Version: Simple Storage 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
 "PO-Revision-Date: 2026-10-09 07:45+0300\n"
 "Last-Translator: Vitalii Kaplia\n"
@@ -383,8 +383,8 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.3.0 works without WP-Cron: new uploads go to the storage at the end of the upload request, sizes that Timber or a theme cuts on page views follow at the end of that request, and the plugin runs its own delayed work at the end of ordinary requests when WP-Cron is off. Themes can announce files they write with simple_storage_queue_offload()."
-msgstr "Версія 0.3.0 працює без WP-Cron: нові файли їдуть у сховище наприкінці запиту завантаження, нарізки, які Timber чи тема роблять на переглядах сторінок, — наприкінці того запиту, а відкладену роботу плагін виконує сам наприкінці звичайних запитів, коли WP-Cron вимкнено. Теми можуть повідомляти про записані файли через simple_storage_queue_offload()."
+msgid "Version 0.3.1: deleting an attachment whose language copies are deleted together (WP-LOC) now deletes its files in the storage too. New files are copied to the storage at the end of the request that wrote them, and their local copies go a minute or two later, once background image optimizers are done with them. Since 0.3.0 the plugin works without WP-Cron."
+msgstr "Версія 0.3.1: видалення вкладення, мовні копії якого видаляються разом (WP-LOC), тепер видаляє його файли й у сховищі. Нові файли копіюються в сховище наприкінці запиту, що їх записав, а їхні локальні копії зникають за хвилину-дві, коли фонові оптимізатори зображень уже закінчили з ними. Від 0.3.0 плагін працює без WP-Cron."
 
 #: includes/class-simple-storage-index.php:195
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
@@ -590,19 +590,19 @@ msgid "Removing empty storage folders"
 msgstr "Видалення порожніх тек у сховищі"
 
 #. translators: 1: number of files, 2: folder.
-#: includes/class-simple-storage-media.php:210
+#: includes/class-simple-storage-media.php:306
 #, php-format
 msgid "Automatically moved %1$d new files from %2$s to the storage."
 msgstr "Автоматично перенесено в сховище нових файлів із %2$s: %1$d."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:285
+#: includes/class-simple-storage-media.php:394
 #, php-format
 msgid "%s was brought back from the storage to be processed locally."
 msgstr "%s повернуто зі сховища для обробки на сайті."
 
 #. translators: %s: file path.
-#: includes/class-simple-storage-media.php:1044
+#: includes/class-simple-storage-media.php:1192
 #, php-format
 msgid "Could not delete %s from the storage; delete it manually."
 msgstr "Не вдалося видалити %s зі сховища — видаліть його вручну."
