@@ -60,11 +60,17 @@ final class Simple_Storage_Settings {
 		$current = self::get();
 		$clean   = self::defaults();
 
-		$clean['host']       = self::sanitize_host( (string) ( $input['host'] ?? '' ) );
-		$clean['login']      = sanitize_text_field( (string) ( $input['login'] ?? '' ) );
-		$clean['public_url'] = self::sanitize_public_url( (string) ( $input['public_url'] ?? '' ) );
+		// A field a constant replaces is not in the form: what is stored stays.
+		$clean['host']       = defined( 'SIMPLE_STORAGE_HOST' ) ? (string) $current['host'] : self::checked_address( (string) ( $input['host'] ?? '' ), (string) $current['host'], __( 'The storage address is not valid, so the previous one was kept.', 'simple-storage' ) );
+		$clean['login']      = defined( 'SIMPLE_STORAGE_LOGIN' ) ? (string) $current['login'] : sanitize_text_field( (string) ( $input['login'] ?? '' ) );
+		$clean['public_url'] = self::checked_address( (string) ( $input['public_url'] ?? '' ), (string) $current['public_url'], __( 'The public address is not valid, so the previous one was kept.', 'simple-storage' ) );
 
 		$password = (string) ( $input['password'] ?? '' );
+		if ( '' === $password && '' !== $clean['host'] && '' !== (string) $current['host'] && $clean['host'] !== $current['host'] && '' !== (string) $current['password'] && ! defined( 'SIMPLE_STORAGE_PASSWORD' ) ) {
+			// The next request would send the stored password to the new address.
+			$clean['host'] = (string) $current['host'];
+			self::report( __( 'To change the storage address, enter the password as well: the saved one is never sent to a new address. The previous address was kept.', 'simple-storage' ) );
+		}
 		if ( '' === $password ) {
 			$clean['password'] = (string) $current['password'];
 		} elseif ( str_starts_with( $password, self::SECRET_PREFIX ) && '' !== self::decrypt( $password ) ) {
@@ -88,6 +94,25 @@ final class Simple_Storage_Settings {
 		self::$cache = null;
 
 		return $clean;
+	}
+
+	/** An address from the form, or the current one when what was typed is not an address. */
+	private static function checked_address( string $value, string $current, string $message ): string {
+		$address = self::sanitize_host( $value );
+		if ( '' === $address && '' !== trim( $value ) ) {
+			self::report( $message );
+
+			return $current;
+		}
+
+		return $address;
+	}
+
+	/** Show an error on the settings page after the redirect; it replaces "Settings saved". */
+	private static function report( string $message ): void {
+		if ( function_exists( 'add_settings_error' ) ) {
+			add_settings_error( self::OPTION, 'simple_storage_invalid', $message );
+		}
 	}
 
 	/**
@@ -119,15 +144,6 @@ final class Simple_Storage_Settings {
 		$port = isset( $parts['port'] ) ? ':' . (int) $parts['port'] : '';
 
 		return $scheme . '://' . $name . $port;
-	}
-
-	public static function sanitize_public_url( string $url ): string {
-		$url = trim( $url );
-		if ( '' === $url ) {
-			return '';
-		}
-
-		return self::sanitize_host( $url );
 	}
 
 	/** One or more path segments of letters, digits, dots, dashes and underscores. */

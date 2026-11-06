@@ -90,6 +90,11 @@ RewriteEngine On
 <IfModule mod_headers.c>
 RequestHeader unset Cookie
 RequestHeader unset Authorization
+Header unset Set-Cookie
+Header always unset Set-Cookie
+Header always set X-Content-Type-Options nosniff
+RewriteCond %{REQUEST_METHOD} ^(?:GET|HEAD)\$
+RewriteCond %{REQUEST_URI} !\.(?:php|php3|php4|php5|php7|php8|phtml|pht|phar|phps|shtml|cgi)(?:\.|\$) [NC]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^([0-9]{4}/[0-9]{2}/.+)$ $STORAGE_URL/$PREFIX/\$1 [P,L]
 </IfModule>
@@ -132,6 +137,14 @@ check "$(head -1 "$WORK/h2" | cut -d' ' -f2)" "200" "a request with cookies and 
 check "$(grep -ci -e '^x-fake-cookie:' -e '^x-fake-authorization:' "$WORK/h2")" "0" "cookies and credentials never reach the storage"
 curl -s -D "$WORK/h3" -o /dev/null -H 'Cookie: a=b' -H 'Authorization: Basic eDp5' "$STORAGE_URL/$PREFIX/2024/05/remote.bin"
 check "$(grep -ci -e '^x-fake-cookie:' -e '^x-fake-authorization:' "$WORK/h3")" "2" "the fake storage reports such headers when it gets them"
+check "$(grep -ci '^set-cookie:' "$WORK/h3")" "1" "the fake storage sets a cookie"
+check "$(grep -ci '^set-cookie:' "$WORK/h1")" "0" "a cookie of the storage does not reach visitors"
+check "$(grep -ci '^x-content-type-options: nosniff' "$WORK/h1")" "1" "browsers are told not to guess the type"
+case "$(curl -s -X POST "$URL")" in *Simple_Storage_Proxy::handle_request*) POSTED=yes ;; *) POSTED=no ;; esac
+check "$POSTED" "yes" "another method goes to proxy.php, which refuses it"
+printf '<?php echo 1;' > "$STORAGE_ROOT/$PREFIX/2024/05/shell.php.jpg"
+case "$(curl -s "$SITE/wp-content/uploads/2024/05/shell.php.jpg")" in *Simple_Storage_Proxy::handle_request*) CODE=yes ;; *) CODE=no ;; esac
+check "$CODE" "yes" "a file a server could run goes to proxy.php too"
 
 echo "== Apache with mod_proxy_http but without mod_headers"
 start_httpd "$PROXY_MODULES"

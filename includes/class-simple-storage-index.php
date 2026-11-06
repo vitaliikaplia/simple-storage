@@ -140,9 +140,12 @@ final class Simple_Storage_Index {
 	 * Record files seen in the uploads directory during a scan.
 	 *
 	 * @param array<int, array{path: string, size: int, mtime: int}> $files
+	 * @return bool False when the database refused a batch: its files are not recorded.
 	 */
-	public static function upsert_local( array $files, int $scan ): void {
+	public static function upsert_local( array $files, int $scan ): bool {
 		global $wpdb;
+
+		$saved = true;
 
 		foreach ( array_chunk( $files, 200 ) as $chunk ) {
 			$values = array();
@@ -157,28 +160,35 @@ final class Simple_Storage_Index {
 			// MySQL applies these assignments left to right: size, mtime and local are compared with
 			// their old values, while sha256, remote, size and mtime already see the new conflict
 			// flag. A conflict row keeps describing the remote original (its size, mtime and
-			// checksum), so it is restored exactly once the foreign local file is gone.
-			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			// checksum), so it is restored exactly once the foreign local file is gone. A row known
+			// only from a storage listing has no mtime: an equal size proves nothing about it, so a
+			// file there is a conflict too, and the remote object stays until someone decides.
+			$saved = false !== $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 				'INSERT INTO ' . self::table() . ' (path_hash, path, size, mtime, local, local_scan, updated_at) VALUES ' . implode( ',', $values ) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				. " ON DUPLICATE KEY UPDATE
-					conflict = IF(local = 0 AND remote = 1 AND (size <> VALUES(size) OR (mtime <> 0 AND mtime <> VALUES(mtime))), 1, conflict),
-					error = IF(local = 0 AND remote = 1 AND (size <> VALUES(size) OR (mtime <> 0 AND mtime <> VALUES(mtime))), '" . esc_sql( self::conflict_message() ) . "', error),
+					conflict = IF(local = 0 AND remote = 1 AND (size <> VALUES(size) OR mtime <> VALUES(mtime)), 1, conflict),
+					error = IF(local = 0 AND remote = 1 AND (size <> VALUES(size) OR mtime <> VALUES(mtime)), '" . esc_sql( self::conflict_message() ) . "', error),
 					verified = IF(size = VALUES(size) AND mtime = VALUES(mtime), verified, 0),
 					sha256 = IF(conflict = 1 OR (size = VALUES(size) AND mtime = VALUES(mtime)), sha256, NULL),
 					remote = IF(conflict = 1 OR (size = VALUES(size) AND mtime = VALUES(mtime)), remote, 0),
 					size = IF(conflict = 1, size, VALUES(size)), mtime = IF(conflict = 1, mtime, VALUES(mtime)), local = 1,
 					local_scan = VALUES(local_scan), updated_at = VALUES(updated_at)"
-			);
+			) && $saved;
 		}
+
+		return $saved;
 	}
 
 	/**
 	 * Record files seen in the storage during a scan.
 	 *
 	 * @param array<int, array{path: string, size: int}> $files
+	 * @return bool False when the database refused a batch: its files are not recorded.
 	 */
-	public static function upsert_remote( array $files, int $scan ): void {
+	public static function upsert_remote( array $files, int $scan ): bool {
 		global $wpdb;
+
+		$saved = true;
 
 		foreach ( array_chunk( $files, 200 ) as $chunk ) {
 			$values = array();
@@ -191,15 +201,17 @@ final class Simple_Storage_Index {
 			// verification does. Conflict rows keep remote = 1 whatever the local file is, because
 			// the remote object is someone else's original. Remote-only rows take the listed size.
 			// MySQL applies these assignments left to right, so size changes only after the comparisons.
-			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$saved = false !== $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 				'INSERT INTO ' . self::table() . ' (path_hash, path, size, local, remote, remote_size, remote_scan, updated_at) VALUES ' . implode( ',', $values ) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				. ' ON DUPLICATE KEY UPDATE
 					verified = IF(conflict = 0 AND local = 1 AND size <> VALUES(remote_size), 0, verified),
 					remote = IF(conflict = 1, 1, IF(local = 1, IF(remote = 1 AND size <> VALUES(remote_size), 0, remote), 1)),
 					size = IF(local = 1, size, VALUES(remote_size)),
 					remote_size = VALUES(remote_size), remote_scan = VALUES(remote_scan), updated_at = VALUES(updated_at)'
-			);
+			) && $saved;
 		}
+
+		return $saved;
 	}
 
 	public static function conflict_message(): string {
@@ -393,13 +405,14 @@ final class Simple_Storage_Index {
 		return (bool) $wpdb->get_var( 'SELECT 1 FROM ' . self::table() . ' WHERE remote = 1 LIMIT 1' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	}
 
+	/**
+	 * Files whose remote copy is the only place they are in: those that live only in the storage,
+	 * and originals held back by a name conflict, whatever the local file at that path is.
+	 */
 	public static function remote_only_count(): int {
-		return self::totals(
-			array(
-				'local'  => 0,
-				'remote' => 1,
-			)
-		)['files'];
+		global $wpdb;
+
+		return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE remote = 1 AND (local = 0 OR conflict = 1)' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/** Rows of the local scan that were not seen again: the file left the uploads directory. */
@@ -418,11 +431,11 @@ final class Simple_Storage_Index {
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
-	public static function unseen_remote( int $scan, int $limit ): array {
+	public static function unseen_remote( int $scan, int $limit, int $after_id = 0 ): array {
 		global $wpdb;
 
 		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-			$wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE remote = 1 AND remote_scan <> %d ORDER BY id ASC LIMIT %d', $scan, $limit ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE remote = 1 AND remote_scan <> %d AND id > %d ORDER BY id ASC LIMIT %d', $scan, $after_id, $limit ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			ARRAY_A
 		);
 

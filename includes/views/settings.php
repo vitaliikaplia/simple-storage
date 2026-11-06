@@ -107,14 +107,14 @@ $simple_storage_constant  = static function ( string $constant ): void {
 					<th scope="row"><?php esc_html_e( 'Verification', 'simple-storage' ); ?></th>
 					<td>
 						<label><input type="checkbox" name="<?php echo esc_attr( $simple_storage_name ); ?>[strict_verify]" value="1" <?php checked( (bool) $simple_storage_values['strict_verify'] ); ?>> <?php esc_html_e( 'Strict: download every copy from its public address and compare its SHA-256 with the local file', 'simple-storage' ); ?></label>
-						<p class="description"><?php esc_html_e( 'Without it, the size in the storage and the size served at the public address are compared. Local files are deleted only after verification in both modes.', 'simple-storage' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Without it, the size in the storage and the size the public address reports are compared, and nothing is downloaded. Local files are deleted only after verification in both modes.', 'simple-storage' ); ?></p>
 					</td>
 				</tr>
 				<tr>
 					<th scope="row"><?php esc_html_e( 'New uploads', 'simple-storage' ); ?></th>
 					<td>
 						<label><input type="checkbox" name="<?php echo esc_attr( $simple_storage_name ); ?>[auto_offload]" value="1" <?php checked( (bool) $simple_storage_values['auto_offload'] ); ?>> <?php esc_html_e( 'Move new uploads to the storage automatically after everything has been moved', 'simple-storage' ); ?></label>
-						<p class="description"><?php esc_html_e( 'A few minutes after an upload, once WordPress has created the thumbnails, the new files are copied, verified and deleted locally. If the storage is unavailable they stay in WordPress.', 'simple-storage' ); ?></p>
+						<p class="description"><?php esc_html_e( 'At the end of the request that wrote them, the new files are copied, verified and deleted locally. With a background image optimizer the local copies wait a minute or two for it. If the storage is unavailable they stay in WordPress.', 'simple-storage' ); ?></p>
 					</td>
 				</tr>
 				<tr>

@@ -8,6 +8,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Simple_Storage_Plugin {
+	public const VERSION_OPTION = 'simple_storage_version';
+
 	private static bool $initialized = false;
 
 	public static function init(): void {
@@ -17,6 +19,7 @@ final class Simple_Storage_Plugin {
 		self::$initialized = true;
 
 		add_action( 'init', array( self::class, 'load_textdomain' ), 0 );
+		add_action( 'init', array( self::class, 'maybe_upgrade' ), 20 );
 
 		if ( is_multisite() ) {
 			add_action( 'admin_notices', array( self::class, 'multisite_notice' ) );
@@ -46,6 +49,14 @@ final class Simple_Storage_Plugin {
 
 	public static function load_textdomain(): void {
 		load_plugin_textdomain( 'simple-storage', false, dirname( SIMPLE_STORAGE_BASENAME ) . '/languages' );
+	}
+
+	/** A new version may generate other rules: an update does not run the activation hook. */
+	public static function maybe_upgrade(): void {
+		if ( ! is_multisite() && SIMPLE_STORAGE_VERSION !== get_option( self::VERSION_OPTION ) ) {
+			update_option( self::VERSION_OPTION, SIMPLE_STORAGE_VERSION, true );
+			Simple_Storage_Delivery::sync();
+		}
 	}
 
 	public static function multisite_notice(): void {
@@ -78,6 +89,7 @@ final class Simple_Storage_Plugin {
 		}
 
 		// The rules may have been removed by hand while the plugin was inactive.
+		update_option( self::VERSION_OPTION, SIMPLE_STORAGE_VERSION, true );
 		Simple_Storage_Delivery::sync();
 	}
 

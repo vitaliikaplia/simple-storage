@@ -100,7 +100,7 @@ final class Simple_Storage_GitHub_Updater {
 			'download_link' => $remote_data['package'] ?? $this->get_package_url(),
 			'sections'      => array(
 				'description' => '<p>' . esc_html__( 'Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly.', 'simple-storage' ) . '</p>',
-				'changelog'   => '<p>' . esc_html__( 'Version 0.3.3: new files go to the storage and leave the disk at the end of the request that wrote them, and folders left empty in the storage are removed at the end of the request that deleted the files, without waiting for other requests; with a background image optimizer the local copies wait for it. Version 0.3.2: folders that deleting files leaves empty in the storage are removed too, safely, under the job lock.', 'simple-storage' ) . '</p>',
+				'changelog'   => '<p>' . esc_html__( 'Version 0.3.4: fixes after an audit. A file in the storage can no longer be overwritten by a new upload or by a local file of the same size, and a transfer back keeps serving while a name conflict is open. Code and data files stay out of the public storage, and the transparent proxy decides file types itself. A "Check serving" button replaces saving the settings. Version 0.3.3: new files go to the storage and leave the disk at the end of the request that wrote them.', 'simple-storage' ) . '</p>',
 			),
 		);
 	}

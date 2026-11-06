@@ -17,6 +17,9 @@ final class Simple_Storage_Paths {
 
 	private const MEDIA_PATTERN = '#^[0-9]{4}/[0-9]{2}/.+#';
 
+	/** Scripts and data that have no place in a public storage (as the last extension of a name). */
+	private const PRIVATE_EXTENSIONS = array( 'pl', 'py', 'rb', 'sh', 'asp', 'aspx', 'jsp', 'sql', 'sqlite', 'db', 'log', 'env', 'ini', 'bak' );
+
 	/** @var array{basedir: string, baseurl: string}|null */
 	private static ?array $uploads = null;
 
@@ -48,6 +51,10 @@ final class Simple_Storage_Paths {
 		if ( str_ends_with( $relative, '/' ) || str_ends_with( $relative, self::PART_SUFFIX ) ) {
 			return false;
 		}
+		// The index cannot store it, and one such name would take its whole batch down with it.
+		if ( '' === wp_check_invalid_utf8( $relative ) ) {
+			return false;
+		}
 
 		foreach ( explode( '/', $relative ) as $segment ) {
 			if ( '' === $segment || '.' === $segment[0] ) {
@@ -56,6 +63,18 @@ final class Simple_Storage_Paths {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Whether a file stays out of the storage: the storage is public, and a file that could run
+	 * or that holds data must neither go there nor come back from it. Such files stay where they
+	 * are, and filter simple_storage_excluded_file decides otherwise. Whatever the filter says,
+	 * proxy.php does not serve files a web server can run.
+	 */
+	public static function is_excluded( string $relative ): bool {
+		$excluded = Simple_Storage_Proxy::is_code_file( $relative ) || in_array( self::extension( $relative ), self::PRIVATE_EXTENSIONS, true );
+
+		return (bool) apply_filters( 'simple_storage_excluded_file', $excluded, $relative );
 	}
 
 	/** True for a "YYYY/MM" folder name. */

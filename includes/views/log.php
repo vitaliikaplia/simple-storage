@@ -64,5 +64,6 @@ $simple_storage_levels = array(
 			</tbody>
 		</table>
 		<p><button type="button" class="button button-small" data-ss-clear="errors"><?php esc_html_e( 'Clear the error list', 'simple-storage' ); ?></button></p>
+		<p class="description"><?php esc_html_e( 'A name conflict stays on the list until one of the two files is renamed or removed and the files are indexed again.', 'simple-storage' ); ?></p>
 	<?php endif; ?>
 </section>

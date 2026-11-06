@@ -15,7 +15,7 @@
 .simple-storage .ss-grid {
 	display: grid;
 	gap: 0 16px;
-	grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
 }
 
 .simple-storage .ss-stats,
@@ -113,10 +113,21 @@
 	color: #d63638;
 }
 
+.simple-storage .ss-status-partial {
+	background: #fcf9e8;
+	color: #996800;
+}
+
+.simple-storage .ss-checks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 8px;
+}
+
 .simple-storage .ss-transfer-actions {
 	display: grid;
 	gap: 16px 32px;
-	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
 }
 
 .simple-storage .ss-transfer-actions .button-hero {
@@ -247,6 +258,22 @@
 
 .simple-storage .ss-test-steps li {
 	word-break: break-word;
+}
+
+@media (max-width: 782px) {
+	.simple-storage .ss-props,
+	.simple-storage .ss-props tbody,
+	.simple-storage .ss-props tr,
+	.simple-storage .ss-props th,
+	.simple-storage .ss-props td {
+		display: block;
+		width: auto;
+	}
+
+	.simple-storage .ss-props th {
+		border-bottom: 0;
+		padding-bottom: 0;
+	}
 }
 
 @media (max-width: 960px) {

@@ -10,6 +10,8 @@
 	const t = config.i18n;
 	let state = config.state;
 	let running = false;
+	// A serving check or a switch of serving is under way: it can take a good while.
+	let working = false;
 
 	const $ = ( name ) => document.querySelector( '[data-ss="' + name + '"]' );
 	const $$ = ( selector ) => Array.from( document.querySelectorAll( selector ) );
@@ -73,6 +75,13 @@
 		area.replaceChildren( el( 'div', { className: 'notice inline notice-' + ( type || 'error' ) }, [ el( 'p', { text: message } ) ] ) );
 	}
 
+	function clearNotice() {
+		const area = $( 'notices' );
+		if ( area ) {
+			area.replaceChildren();
+		}
+	}
+
 	function renderStats() {
 		const stats = state.stats;
 		[ 'total', 'local_only', 'both', 'remote_only' ].forEach( ( key ) => {
@@ -109,6 +118,7 @@
 		}
 
 		const proxyOn = state.delivery && 'proxy' === state.deliveryMode;
+		const blocked = running || working;
 		let engine = '';
 		if ( proxyOn ) {
 			engine = 'php' === state.proxyEngine ? t.enginePhp : t.engineApache + ' (' + state.proxyEngine + ')';
@@ -127,22 +137,33 @@
 				verified.textContent = t.notVerified;
 			}
 		}
-		const probeWrap = $( 'probe-wrap' );
-		if ( probeWrap ) {
-			probeWrap.hidden = ! proxyOn;
+		const checks = $( 'checks' );
+		if ( checks ) {
+			checks.hidden = ! state.delivery;
+			const verifyButton = $( 'verify' );
+			if ( ! working ) {
+				verifyButton.textContent = t.verify;
+			}
+			verifyButton.disabled = blocked;
 			const probeButton = $( 'probe' );
-			probeButton.textContent = t.probe;
-			probeButton.disabled = running;
+			probeButton.hidden = ! proxyOn;
+			if ( ! working ) {
+				probeButton.textContent = t.probe;
+			}
+			probeButton.disabled = blocked;
 		}
 
 		const htaccess = { ok: t.htaccessOk, missing: t.htaccessMissing, stale: t.htaccessStale };
 		setText( 'htaccess', state.delivery ? htaccess[ state.htaccess ] || '' : '' );
-		setText( 'auto', state.auto ? t.autoOn : t.autoOff );
+		setText( 'auto', state.auto ? ( state.autoHeld ? t.autoHeld : t.autoOn ) : t.autoOff );
 
 		const toggle = $( 'delivery-toggle' );
 		if ( toggle ) {
-			toggle.textContent = state.delivery ? t.disable : t.enable;
-			toggle.disabled = ! state.configured || running;
+			if ( ! working ) {
+				toggle.textContent = state.delivery ? t.disable : t.enable;
+			}
+			// Serving can be turned off without a connection, for instance after the salts changed.
+			toggle.disabled = ( ! state.configured && ! state.delivery ) || blocked;
 		}
 	}
 
@@ -172,8 +193,9 @@
 
 		setText( 'job-title', job.label );
 		const status = $( 'job-status' );
+		const partial = 'done' === job.status && job.failed > 0;
 		status.textContent = job.statusLabel;
-		status.className = 'ss-badge ss-status-' + job.status;
+		status.className = 'ss-badge ss-status-' + ( partial ? 'partial' : job.status );
 
 		setText( 'job-meta', t.started + ' ' + job.started + ( job.finished ? ' · ' + t.finished + ' ' + job.finished : '' ) );
 
@@ -202,7 +224,13 @@
 		const message = $( 'job-message' );
 		message.replaceChildren();
 		if ( job.message ) {
-			message.appendChild( el( 'div', { className: 'notice inline ' + ( 'failed' === job.status ? 'notice-error' : 'notice-success' ) }, [ el( 'p', { text: job.message } ) ] ) );
+			let kind = 'notice-success';
+			if ( 'failed' === job.status ) {
+				kind = 'notice-error';
+			} else if ( partial ) {
+				kind = 'notice-warning';
+			}
+			message.appendChild( el( 'div', { className: 'notice inline ' + kind }, [ el( 'p', { text: job.message } ) ] ) );
 		}
 		if ( 'running' === job.status ) {
 			message.appendChild( el( 'p', { className: 'description', text: t.keepOpen } ) );
@@ -219,6 +247,9 @@
 		}
 		if ( [ 'running', 'paused', 'failed' ].includes( job.status ) ) {
 			buttons.push( el( 'button', { type: 'button', className: 'button button-link-delete', 'data-ss-job': 'cancel', text: t.cancel } ) );
+		}
+		if ( 'done' === job.status ) {
+			buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-job': 'dismiss', text: t.close } ) );
 		}
 		$( 'job-buttons' ).replaceChildren( ...buttons );
 	}
@@ -283,13 +314,22 @@
 		render();
 
 		let failures = 0;
+		let waiting = false;
+		const stopWaiting = () => {
+			if ( waiting ) {
+				waiting = false;
+				clearNotice();
+			}
+		};
 		while ( state.job && 'running' === state.job.status ) {
 			try {
 				await post( 'job', { do: 'step' } );
 				failures = 0;
+				stopWaiting();
 			} catch ( error ) {
 				if ( 'simple_storage_job_locked' === error.code ) {
 					// Another tab, request or WP-CLI holds the job: follow it, never pause it.
+					waiting = true;
 					notice( t.busy, 'info' );
 					await sleep( 5000 );
 					try {
@@ -299,15 +339,24 @@
 				}
 				failures++;
 				if ( failures >= 4 ) {
+					let paused = true;
 					try {
 						await post( 'job', { do: 'pause' } );
-					} catch ( ignored ) {}
-					notice( error.server ? error.message : t.networkError );
+					} catch ( ignored ) {
+						paused = false;
+					}
+					waiting = false;
+					if ( paused ) {
+						notice( error.server ? error.message : t.networkError );
+					} else {
+						notice( t.networkLost );
+					}
 					break;
 				}
 				await sleep( 3000 * failures );
 			}
 		}
+		stopWaiting();
 
 		running = false;
 		render();
@@ -342,15 +391,35 @@
 		}
 	}
 
-	async function toggleDelivery() {
+	/** Run a request that may take a while, with its button saying so and the others waiting. */
+	async function withChecking( button, action, data ) {
+		if ( working ) {
+			return;
+		}
+		working = true;
+		clearNotice();
+		render();
+		button.textContent = t.probing;
+		try {
+			const result = await post( action, data );
+			if ( result.message ) {
+				notice( result.message, 'warning' );
+			} else if ( 'verify' === action ) {
+				notice( t.verifyOk, 'success' );
+			}
+		} catch ( error ) {
+			notice( error.message );
+		} finally {
+			working = false;
+			render();
+		}
+	}
+
+	function toggleDelivery( button ) {
 		if ( state.delivery && state.stats.raw.remote_only > 0 && ! window.confirm( t.confirmDisable ) ) { // eslint-disable-line no-alert
 			return;
 		}
-		try {
-			await post( 'delivery', { do: state.delivery ? 'disable' : 'enable' } );
-		} catch ( error ) {
-			notice( error.message );
-		}
+		withChecking( button, 'delivery', { do: state.delivery ? 'disable' : 'enable' } );
 	}
 
 	async function test( button ) {
@@ -384,19 +453,17 @@
 		} else if ( target.hasAttribute( 'data-ss-job' ) ) {
 			jobAction( target.getAttribute( 'data-ss-job' ) );
 		} else if ( 'delivery-toggle' === target.getAttribute( 'data-ss' ) ) {
-			toggleDelivery();
+			toggleDelivery( target );
 		} else if ( 'test' === target.getAttribute( 'data-ss' ) ) {
 			test( target );
-		} else if ( 'probe' === target.getAttribute( 'data-ss' ) ) {
-			target.disabled = true;
-			target.textContent = t.probing;
-			post( 'probe' ).catch( ( error ) => notice( error.message ) ).finally( render );
+		} else if ( 'probe' === target.getAttribute( 'data-ss' ) || 'verify' === target.getAttribute( 'data-ss' ) ) {
+			withChecking( target, target.getAttribute( 'data-ss' ) );
 		} else if ( target.hasAttribute( 'data-ss-clear' ) ) {
 			post( 'clear', { what: target.getAttribute( 'data-ss-clear' ) } ).then( () => {
 				if ( ! $( 'job' ) ) {
 					window.location.reload();
 				}
-			} );
+			} ).catch( ( error ) => notice( error.message ) );
 		}
 	} );
 

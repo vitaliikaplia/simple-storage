@@ -278,6 +278,38 @@ final class Simple_Storage_Delivery {
 		return array_values( array_map( 'strval', (array) ( $verified['extensions'] ?? array() ) ) );
 	}
 
+	/** @return array<int, string> Extensions of the files the site serves (or will serve) from the storage. */
+	public static function extensions_to_verify(): array {
+		$extensions = Simple_Storage_Index::extensions( array( 'remote' => 1 ), self::MAX_EXTENSIONS );
+
+		return empty( $extensions ) ? array( 'txt' ) : $extensions;
+	}
+
+	/**
+	 * Refresh everything serving depends on and prove it again for the current settings: the
+	 * generated rules and configuration, the proxy engine when its result is stale, and every
+	 * extension of the files in the storage.
+	 *
+	 * @return array{ok: array<int, string>, failed: array<string, string>}|WP_Error
+	 */
+	public static function verify_current() {
+		if ( ! self::active() ) {
+			return new WP_Error( 'simple_storage_delivery_off', __( 'Serving from the storage is off.', 'simple-storage' ) );
+		}
+
+		$results = self::sync();
+		if ( 'proxy' === Simple_Storage_Settings::delivery_mode() ) {
+			if ( is_wp_error( $results['config'] ) ) {
+				return $results['config'];
+			}
+			if ( ! self::probe_is_current() ) {
+				self::probe_proxy();
+			}
+		}
+
+		return self::verify_delivery( self::extensions_to_verify() );
+	}
+
 	/** Whether serving was verified at all for the current settings (the automatic offload needs it). */
 	public static function delivery_verified(): bool {
 		return ! empty( self::verified_extensions() );
@@ -292,13 +324,19 @@ final class Simple_Storage_Delivery {
 		if ( in_array( $extension, self::verified_extensions(), true ) ) {
 			return true;
 		}
-		if ( isset( self::$failed[ $extension ] ) || ! self::active() ) {
+		// An extension a probe file cannot carry stays local without a request per file.
+		if ( isset( self::$failed[ $extension ] ) || ! self::active() || ! self::probeable( $extension ) ) {
 			return false;
 		}
 
 		$result = self::verify_delivery( array( $extension ) );
 
 		return ! is_wp_error( $result ) && in_array( $extension, $result['ok'], true );
+	}
+
+	/** Whether a probe file can carry this extension. */
+	private static function probeable( string $extension ): bool {
+		return 1 === preg_match( '/^[a-z0-9]{0,10}$/', $extension );
 	}
 
 	/**
@@ -316,8 +354,9 @@ final class Simple_Storage_Delivery {
 			return new WP_Error( 'simple_storage_delivery_off', __( 'Serving from the storage is off.', 'simple-storage' ) );
 		}
 
-		$extensions = array_slice( array_values( array_unique( array_filter( array_map( 'strtolower', array_map( 'strval', $extensions ) ), static fn( string $e ): bool => 1 === preg_match( '/^[a-z0-9]{0,10}$/', $e ) ) ) ), 0, self::MAX_EXTENSIONS );
-		if ( empty( $extensions ) ) {
+		$requested  = array_map( 'strtolower', array_map( 'strval', $extensions ) );
+		$extensions = array_slice( array_values( array_unique( array_filter( $requested, array( self::class, 'probeable' ) ) ) ), 0, self::MAX_EXTENSIONS );
+		if ( empty( $requested ) ) {
 			$extensions = array( 'txt' );
 		}
 
@@ -504,7 +543,8 @@ final class Simple_Storage_Delivery {
 
 	/**
 	 * The proxy engine found by the last probe for the current storage address and folder:
-	 * "apache-https" or "apache-http" (mod_proxy through RewriteRule [P], no PHP), or "php".
+	 * "apache-https" (mod_proxy through RewriteRule [P], no PHP), or "php". A plain HTTP connection
+	 * to the storage is not an option: proxy.php verifies the storage, Apache would not.
 	 */
 	public static function proxy_engine(): string {
 		$probe = Simple_Storage_Settings::state()['proxy'];
@@ -512,19 +552,12 @@ final class Simple_Storage_Delivery {
 			return 'php';
 		}
 
-		return in_array( $probe['engine'] ?? '', array( 'apache-https', 'apache-http' ), true ) ? (string) $probe['engine'] : 'php';
+		return 'apache-https' === ( $probe['engine'] ?? '' ) ? 'apache-https' : 'php';
 	}
 
 	/** What a probe result depends on; a change makes the result stale. */
 	private static function proxy_signature(): string {
 		return md5( Simple_Storage_Settings::public_base() . '|' . Simple_Storage_Settings::prefix() . '|' . Simple_Storage_Paths::uploads()['baseurl'] );
-	}
-
-	/** Storage address Apache proxies to: the public base with the scheme the engine needs. */
-	private static function apache_upstream( string $engine ): string {
-		$prefix = Simple_Storage_Paths::public_prefix();
-
-		return 'apache-http' === $engine ? (string) preg_replace( '#^https://#i', 'http://', $prefix ) : $prefix;
 	}
 
 	/** @return array<int, string> */
@@ -534,14 +567,21 @@ final class Simple_Storage_Delivery {
 		if ( 'proxy' === Simple_Storage_Settings::delivery_mode() ) {
 			$engine = $engine ?? self::proxy_engine();
 			if ( 'php' !== $engine ) {
-				// Apache streams the file itself, but never with the visitor's cookies or credentials:
-				// without mod_headers to strip them (or without mod_proxy) the PHP rule below takes over.
+				// Apache streams the file itself, but never with the visitor's cookies or credentials,
+				// and it passes on neither cookies of the storage nor a type browsers would guess.
+				// Without mod_headers to do that (or without mod_proxy) the PHP rule below takes over,
+				// as it does for what that rule refuses: other methods and files that could run.
 				$rules[] = '<IfModule mod_proxy_http.c>';
 				$rules[] = '<IfModule mod_headers.c>';
 				$rules[] = 'RequestHeader unset Cookie';
 				$rules[] = 'RequestHeader unset Authorization';
+				$rules[] = 'Header unset Set-Cookie';
+				$rules[] = 'Header always unset Set-Cookie';
+				$rules[] = 'Header always set X-Content-Type-Options nosniff';
+				$rules[] = 'RewriteCond %{REQUEST_METHOD} ^(?:GET|HEAD)$';
+				$rules[] = 'RewriteCond %{REQUEST_URI} !\.(?:' . implode( '|', Simple_Storage_Proxy::CODE_EXTENSIONS ) . ')(?:\.|$) [NC]';
 				$rules[] = 'RewriteCond %{REQUEST_FILENAME} !-f';
-				$rules[] = 'RewriteRule ^([0-9]{4}/[0-9]{2}/.+)$ ' . self::apache_upstream( $engine ) . '$1 [P,L]';
+				$rules[] = 'RewriteRule ^([0-9]{4}/[0-9]{2}/.+)$ ' . Simple_Storage_Paths::public_prefix() . '$1 [P,L]';
 				$rules[] = '</IfModule>';
 				$rules[] = '</IfModule>';
 			}
@@ -560,9 +600,9 @@ final class Simple_Storage_Delivery {
 	/**
 	 * Find out whether Apache can proxy to the storage itself (RewriteRule [P]), so that no PHP
 	 * process is spent on media. A probe file is put into the storage and requested through the
-	 * site address under each candidate rule: the engine counts only when the bytes match and the
-	 * response did not come from the PHP proxy. Anything else — no mod_proxy or mod_headers, no SSL
-	 * proxying, a redirect to HTTPS by the storage, a failed loopback — falls back to proxy.php.
+	 * site address under that rule: the engine counts only when the bytes match and the response
+	 * did not come from the PHP proxy. Anything else — no mod_proxy or mod_headers, no SSL
+	 * proxying, a failed loopback — falls back to proxy.php.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -582,43 +622,35 @@ final class Simple_Storage_Delivery {
 			'simple storage probe',
 			'txt',
 			static function ( string $url, string $body ) use ( &$report ) {
-				$upstreams = array();
-				foreach ( array( 'apache-https', 'apache-http' ) as $engine ) {
-					$upstream = self::apache_upstream( $engine );
-					if ( in_array( $upstream, $upstreams, true ) ) {
-						continue;
-					}
-					$upstreams[] = $upstream;
-
-					$written = self::write_htaccess( $engine );
-					if ( is_wp_error( $written ) ) {
-						$report['tried'][] = array(
-							'engine' => $engine,
-							'result' => $written->get_error_message(),
-						);
-						break;
-					}
-
-					$response = self::probe_request( $url, 0 );
-					if ( is_wp_error( $response ) ) {
-						$result = $response->get_error_message();
-					} elseif ( '' !== (string) wp_remote_retrieve_header( $response, 'x-simple-storage' ) ) {
-						$result = 'php';
-					} else {
-						$result = (string) wp_remote_retrieve_response_code( $response );
-						if ( '200' === $result && wp_remote_retrieve_body( $response ) !== $body ) {
-							$result = 'body mismatch';
-						}
-					}
-
+				$engine  = 'apache-https';
+				$written = self::write_htaccess( $engine );
+				if ( is_wp_error( $written ) ) {
 					$report['tried'][] = array(
 						'engine' => $engine,
-						'result' => $result,
+						'result' => $written->get_error_message(),
 					);
-					if ( '200' === $result ) {
-						$report['engine'] = $engine;
-						break;
+
+					return true;
+				}
+
+				$response = self::probe_request( $url, 0 );
+				if ( is_wp_error( $response ) ) {
+					$result = $response->get_error_message();
+				} elseif ( '' !== (string) wp_remote_retrieve_header( $response, 'x-simple-storage' ) ) {
+					$result = 'php';
+				} else {
+					$result = (string) wp_remote_retrieve_response_code( $response );
+					if ( '200' === $result && wp_remote_retrieve_body( $response ) !== $body ) {
+						$result = 'body mismatch';
 					}
+				}
+
+				$report['tried'][] = array(
+					'engine' => $engine,
+					'result' => $result,
+				);
+				if ( '200' === $result ) {
+					$report['engine'] = $engine;
 				}
 
 				return true;

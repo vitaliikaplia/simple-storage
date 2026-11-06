@@ -61,6 +61,10 @@ PHPCONFIG
 mkdir -p "$WORK/site/wp-content/uploads/2024/05" "$STORAGE_ROOT/$PREFIX/2024/05"
 head -c 1048576 /dev/urandom > "$STORAGE_ROOT/$PREFIX/2024/05/remote.bin"
 printf 'png' > "$STORAGE_ROOT/$PREFIX/2024/05/Фото тест.png"
+printf '<?php echo 1;' > "$STORAGE_ROOT/$PREFIX/2024/05/shell.php"
+printf '<?php echo 1;' > "$STORAGE_ROOT/$PREFIX/2024/05/shell.php.jpg"
+printf '<script>alert(1)</script>' > "$STORAGE_ROOT/$PREFIX/2024/05/page.html"
+printf '<svg xmlns="http://www.w3.org/2000/svg"/>' > "$STORAGE_ROOT/$PREFIX/2024/05/icon.svg"
 printf 'local' > "$WORK/site/wp-content/uploads/2024/05/local.jpg"
 write_config proxy
 
@@ -98,6 +102,24 @@ check "$(curl -s "$SITE/wp-content/uploads/2024/05/local.jpg")" "local" "a local
 check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/..%2F..%2F..%2Fwp-config.php")" "404" "path traversal refused"
 check "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL")" "405" "only GET and HEAD"
 check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/.hidden")" "404" "hidden files refused"
+check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/shell.php")" "404" "a file a server could run is never served"
+check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/shell.php.jpg")" "404" "not with another extension behind it either"
+curl -s -D "$WORK/h4" -o /dev/null "$SITE/wp-content/uploads/2024/05/page.html"
+check "$(grep -i '^content-type:' "$WORK/h4" | tr -d '\r' | cut -d' ' -f2-)" "application/octet-stream" "the type of an unknown file does not come from the storage"
+check "$(grep -i '^content-disposition:' "$WORK/h4" | tr -d '\r' | cut -d' ' -f2-)" "attachment" "such a file is a download"
+curl -s -D "$WORK/h5" -o /dev/null "$SITE/wp-content/uploads/2024/05/icon.svg"
+check "$(grep -ci '^content-security-policy:.*sandbox' "$WORK/h5")" "1" "an SVG opened on its own runs no script"
+curl -s -D "$WORK/h6" -o /dev/null -H 'Range: bytes=99999999-' "$URL"
+check "$(head -1 "$WORK/h6" | cut -d' ' -f2)" "416" "a range outside the file answers 416"
+check "$(grep -i '^cache-control:' "$WORK/h6" | tr -d '\r' | cut -d' ' -f2-)" "no-store" "and nothing may keep that answer"
+check "$(grep -ci '^set-cookie:' "$WORK/h1")" "0" "cookies of the storage do not reach visitors"
+mkdir -p "$STORAGE_ROOT/.fake"
+cat > "$STORAGE_ROOT/.fake/faults.json" <<FAULTS
+{"redirect": {"inner.jpg": "/$PREFIX/2024/05/remote.bin", "outer.jpg": "${STORAGE_URL/127.0.0.1/localhost}/$PREFIX/2024/05/remote.bin"}}
+FAULTS
+check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/inner.jpg")" "200" "a redirect of the storage to its own host is followed"
+check "$(curl -s -o /dev/null -w '%{http_code}' "$SITE/wp-content/uploads/2024/05/outer.jpg")" "502" "a redirect into the network of the site is not"
+rm -f "$STORAGE_ROOT/.fake/faults.json"
 
 write_config direct
 check "$(curl -s -o /dev/null -w '%{http_code}' "$URL")" "302" "direct mode: the emulated rule redirects instead"

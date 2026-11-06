@@ -70,13 +70,14 @@ if ( is_file( $simple_storage_config_file ) && str_contains( (string) file_get_c
 
 $wpdb->query( "DROP TABLE IF EXISTS {$simple_storage_table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_storage_job', 'simple_storage_lock', 'simple_storage_log', 'simple_storage_token', 'simple_storage_scan_seq', 'simple_storage_db_version', 'simple_storage_regenerating' ) as $simple_storage_option ) {
+foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_storage_job', 'simple_storage_lock', 'simple_storage_log', 'simple_storage_token', 'simple_storage_scan_seq', 'simple_storage_db_version', 'simple_storage_regenerating', 'simple_storage_version' ) as $simple_storage_option ) {
 	delete_option( $simple_storage_option );
 }
 
 // Short-lived state: files held local, folder leases, Timber sizes that failed, the runner's flag.
 $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_simple\\_storage\\_%' OR option_name LIKE '\\_transient\\_timeout\\_simple\\_storage\\_%'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 delete_post_meta_by_key( '_simple_storage_client_processing' );
+delete_site_transient( 'simple_storage_github_update_data' );
 
 wp_unschedule_hook( 'simple_storage_offload_dir' );
 wp_unschedule_hook( 'simple_storage_delete_remote' );

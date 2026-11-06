@@ -73,8 +73,8 @@ function ss_section( string $title ): void {
 	WP_CLI::log( "\n== " . $title );
 }
 
-function ss_run_job( string $type ): array {
-	$job = Simple_Storage_Jobs::start( $type );
+function ss_run_job( string $type, array $options = array() ): array {
+	$job = Simple_Storage_Jobs::start( $type, $options );
 	if ( is_wp_error( $job ) ) {
 		return array(
 			'status'  => 'start-error',
@@ -365,6 +365,11 @@ try {
 			'<IfModule mod_headers.c>',
 			'RequestHeader unset Cookie',
 			'RequestHeader unset Authorization',
+			'Header unset Set-Cookie',
+			'Header always unset Set-Cookie',
+			'Header always set X-Content-Type-Options nosniff',
+			'RewriteCond %{REQUEST_METHOD} ^(?:GET|HEAD)$',
+			'RewriteCond %{REQUEST_URI} !\.(?:php|php3|php4|php5|php7|php8|phtml|pht|phar|phps|shtml|cgi)(?:\.|$) [NC]',
 			'RewriteCond %{REQUEST_FILENAME} !-f',
 			'RewriteRule ^([0-9]{4}/[0-9]{2}/.+)$ ' . $ss_fake_url . '/' . $ss_prefix . '/$1 [P,L]',
 			'</IfModule>',
@@ -813,7 +818,11 @@ try {
 		} else {
 			$_POST['attachment_id'] = $ss_client_id;
 			do_action( 'wp_ajax_media-create-image-subsizes' );
-			unset( $_POST['attachment_id'] );
+			clearstatcache();
+			ss_check( ! is_file( $ss_uploads . '/2019/03/client.jpg' ), 'without the nonce of the request nothing is downloaded' );
+			$_REQUEST['_ajax_nonce'] = wp_create_nonce( 'media-form' );
+			do_action( 'wp_ajax_media-create-image-subsizes' );
+			unset( $_POST['attachment_id'], $_REQUEST['_ajax_nonce'] );
 		}
 		clearstatcache();
 		ss_check( is_file( $ss_uploads . '/2019/03/client.jpg' ), 'the original comes back for WordPress to finish the sizes (' . $ss_way . ')' );
@@ -1414,9 +1423,14 @@ try {
 	ss_check( ss_remote_only( $ss_thumb ) && hash_file( 'sha256', ss_remote( $ss_thumb ) ) === $ss_new_thumb, 'the regenerated size replaced the old one in the storage' );
 	ss_check( count( $ss_regen_files ) === count( array_filter( $ss_regen_files, 'ss_remote_only' ) ), 'the whole attachment lives only in the storage again' );
 
-	$_REQUEST['id'] = (string) $ss_regen;
+	$_GET['id'] = $_REQUEST['id'] = (string) $ss_regen;
 	Simple_Storage_Media::before_regenerate_ajax();
-	unset( $_REQUEST['id'] );
+	unset( $_GET['id'], $_REQUEST['id'] );
+	clearstatcache();
+	ss_check( ! is_file( $ss_uploads . '/2024/05/regen.jpg' ), 'a link to the old regeneration action downloads nothing' );
+	$_POST['id'] = (string) $ss_regen;
+	Simple_Storage_Media::before_regenerate_ajax();
+	unset( $_POST['id'] );
 	ss_check( is_file( $ss_uploads . '/2024/05/regen.jpg' ), 'Regenerate Thumbnails 2.x gets the original back first' );
 	ss_drop_local( '2024/05/regen.jpg' );
 	Simple_Storage_Media::before_rest_edit( null, null, new WP_REST_Request( 'POST', '/regenerate-thumbnails/v1/regenerate/' . $ss_regen ) );
@@ -1755,6 +1769,323 @@ try {
 	ss_check( ! file_exists( $ss_uploads . '/2024/05/same-size.bin' ) && hash_file( 'sha256', ss_remote( '2024/05/same-size.bin' ) ) === $ss_expected['2024/05/same-size.bin'], 'the same-size file was uploaded over the stranger in the storage' );
 	ss_check( 0 === Simple_Storage_Index::stats()['errors'], 'errors cleared after success' );
 
+	ss_section( 'Names, copies and conflicts' );
+	ss_check( Simple_Storage_Proxy::is_code_file( '2016/02/a.php' ) && Simple_Storage_Proxy::is_code_file( '2016/02/a.PHP.jpg' ) && ! Simple_Storage_Proxy::is_code_file( '2016/02/php.jpg' ), 'files a web server can run are recognised in any position of a name' );
+
+	ss_write( $ss_uploads . '/2016/02/stale.bin', random_bytes( 700 ) );
+	ss_offload( '2016/02', array( '2016/02/stale.bin' ) );
+	$ss_row = Simple_Storage_Index::get( '2016/02/stale.bin' );
+	ss_check( ss_remote_only( '2016/02/stale.bin' ), 'set-up: the file lives only in the storage', $ss_row );
+	Simple_Storage_Index::update( (int) $ss_row['id'], array( 'local' => 1 ) );
+	ss_check( 'stale-1.bin' === wp_unique_filename( $ss_uploads . '/2016/02', 'stale.bin' ), 'a name whose file left the disk is taken, whatever the local flag says' );
+	Simple_Storage_Index::update( (int) $ss_row['id'], array( 'local' => 0 ) );
+
+	$ss_seen = null;
+	$ss_watch = static function ( $query ) use ( &$ss_seen, $ss_uploads ) {
+		if ( null === $ss_seen && str_contains( (string) $query, 'simple_storage_files' ) && str_starts_with( ltrim( (string) $query ), 'UPDATE' ) && preg_match( "/`local` = '?0'?/", (string) $query ) ) {
+			$ss_seen = is_file( $ss_uploads . '/2016/02/order.bin' );
+		}
+
+		return $query;
+	};
+	ss_write( $ss_uploads . '/2016/02/order.bin', random_bytes( 300 ) );
+	add_filter( 'query', $ss_watch );
+	ss_offload( '2016/02', array( '2016/02/order.bin' ) );
+	remove_filter( 'query', $ss_watch );
+	ss_check( true === $ss_seen && ss_remote_only( '2016/02/order.bin' ), 'the index hears about a local copy going before it goes', array( $ss_seen ) );
+
+	simple_storage_ensure_local( '2016/02/order.bin' );
+	chmod( $ss_uploads . '/2016/02', 0555 );
+	$ss_client = Simple_Storage_Client::create();
+	$ss_result = Simple_Storage_Transfer::remove_local( $ss_client, (array) Simple_Storage_Index::get( '2016/02/order.bin' ) );
+	chmod( $ss_uploads . '/2016/02', 0755 );
+	ss_check( is_wp_error( $ss_result ) && 1 === Simple_Storage_Index::get( '2016/02/order.bin' )['local'], 'a local copy that could not be deleted stays recorded as local' );
+	Simple_Storage_Media::release_hold( '2016/02/order.bin' );
+	ss_drop_local( '2016/02/order.bin' );
+
+	ss_write( $ss_uploads . '/2016/02/known.bin', str_repeat( 'A', 900 ) );
+	ss_offload( '2016/02', array( '2016/02/known.bin' ) );
+	ss_write( $ss_uploads . '/2016/02/known.bin', str_repeat( 'F', 900 ) );
+	$ss_result = Simple_Storage_Transfer::download( $ss_client, (array) Simple_Storage_Index::get( '2016/02/known.bin' ) );
+	$ss_row    = Simple_Storage_Index::get( '2016/02/known.bin' );
+	ss_check( is_wp_error( $ss_result ) && 'simple_storage_conflict' === $ss_result->get_error_code() && 1 === $ss_row['conflict'], 'a local file of the same size with other contents is a name conflict, not the copy', $ss_row );
+	ss_check( 1 === $ss_row['remote'] && ! empty( $ss_row['sha256'] ) && 900 === $ss_row['size'], 'the conflict row keeps describing the remote original', $ss_row );
+	$ss_job = ss_run_job( 'push' );
+	clearstatcache();
+	ss_check( 'done' === $ss_job['status'] && is_file( $ss_uploads . '/2016/02/known.bin' ) && str_repeat( 'F', 900 ) === file_get_contents( $ss_uploads . '/2016/02/known.bin' ), 'the next push does not delete that local file', $ss_job['message'] ?? '' );
+	ss_check( str_repeat( 'A', 900 ) === file_get_contents( ss_remote( '2016/02/known.bin' ) ), 'and does not overwrite the original' );
+	unlink( $ss_uploads . '/2016/02/known.bin' );
+	ss_run_job( 'index' );
+	ss_check( ss_remote_only( '2016/02/known.bin' ), 'once one of them is gone, the original lives only in the storage again' );
+
+	file_put_contents( ss_remote( '2016/02/listed.bin' ), str_repeat( 'B', 800 ) );
+	ss_run_job( 'index' );
+	$ss_row = Simple_Storage_Index::get( '2016/02/listed.bin' );
+	ss_check( null !== $ss_row && 0 === $ss_row['mtime'] && null === $ss_row['sha256'], 'set-up: a row known only from a storage listing', $ss_row );
+	ss_write( $ss_uploads . '/2016/02/listed.bin', str_repeat( 'F', 800 ) );
+	ss_run_job( 'push' );
+	clearstatcache();
+	ss_check( 1 === Simple_Storage_Index::get( '2016/02/listed.bin' )['conflict'] && str_repeat( 'B', 800 ) === file_get_contents( ss_remote( '2016/02/listed.bin' ) ), 'an equal size does not let a push overwrite a file known only from a listing', Simple_Storage_Index::get( '2016/02/listed.bin' ) );
+	unlink( $ss_uploads . '/2016/02/listed.bin' );
+	ss_run_job( 'index' );
+	ss_write( $ss_uploads . '/2016/02/listed.bin', str_repeat( 'F', 800 ) );
+	$ss_result = Simple_Storage_Transfer::download( $ss_client, (array) Simple_Storage_Index::get( '2016/02/listed.bin' ) );
+	ss_check( is_wp_error( $ss_result ) && 1 === Simple_Storage_Index::get( '2016/02/listed.bin' )['conflict'], 'a download compares a file in its way with the copy the storage shows' );
+	unlink( $ss_uploads . '/2016/02/listed.bin' );
+	ss_run_job( 'index' );
+	ss_write( $ss_uploads . '/2016/02/listed.bin', str_repeat( 'B', 800 ) );
+	$ss_result = Simple_Storage_Transfer::download( $ss_client, (array) Simple_Storage_Index::get( '2016/02/listed.bin' ) );
+	$ss_row    = Simple_Storage_Index::get( '2016/02/listed.bin' );
+	ss_check( 0 === $ss_result && 0 === $ss_row['conflict'] && 1 === $ss_row['local'] && hash( 'sha256', str_repeat( 'B', 800 ) ) === $ss_row['sha256'], 'and takes it when the contents are the same', $ss_row );
+	unset( $ss_client );
+
+	ss_write( $ss_uploads . '/2016/02/changed.txt', str_repeat( '1', 400 ) );
+	$ss_id = wp_insert_attachment(
+		array(
+			'post_mime_type' => 'text/plain',
+			'post_title'     => 'Simple Storage changed file',
+			'post_status'    => 'inherit',
+		),
+		'2016/02/changed.txt'
+	);
+	update_post_meta( $ss_id, '_wp_attached_file', '2016/02/changed.txt' );
+	ss_offload( '2016/02', array( '2016/02/changed.txt' ) );
+	simple_storage_ensure_local( '2016/02/changed.txt' );
+	ss_write( $ss_uploads . '/2016/02/changed.txt', 'changed on the site' );
+	ss_run_job( 'index' );
+	$ss_row = Simple_Storage_Index::get( '2016/02/changed.txt' );
+	ss_check( null !== $ss_row && 0 === $ss_row['remote'] && null !== $ss_row['remote_size'] && is_file( ss_remote( '2016/02/changed.txt' ) ), 'set-up: the old version is still in the storage', $ss_row );
+	wp_delete_attachment( $ss_id, true );
+	clearstatcache();
+	ss_check( ! file_exists( ss_remote( '2016/02/changed.txt' ) ) && null === Simple_Storage_Index::get( '2016/02/changed.txt' ), 'an attachment deleted after it changed takes its old version out of the storage' );
+	ss_write( $ss_uploads . '/2016/02/changed.bin', str_repeat( '2', 300 ) );
+	ss_offload( '2016/02', array( '2016/02/changed.bin' ) );
+	simple_storage_ensure_local( '2016/02/changed.bin' );
+	ss_write( $ss_uploads . '/2016/02/changed.bin', 'changed as well' );
+	ss_run_job( 'index' );
+	wp_delete_file( $ss_uploads . '/2016/02/changed.bin' );
+	clearstatcache();
+	ss_check( ! file_exists( ss_remote( '2016/02/changed.bin' ) ) && null === Simple_Storage_Index::get( '2016/02/changed.bin' ), 'so does such a file WordPress deletes on its own' );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	$ss_expected['2016/02/stale.bin'] = hash_file( 'sha256', ss_remote( '2016/02/stale.bin' ) );
+
+	ss_section( 'Files that stay out of the storage' );
+	foreach ( array( 'shell.php', 'shell.PHP', 'shell.php.jpg', 'a.phtml', 'dump.sql', 'debug.log', 'tool.py' ) as $ss_name ) {
+		ss_check( Simple_Storage_Paths::is_excluded( '2016/04/' . $ss_name ), 'stays out: ' . $ss_name );
+	}
+	foreach ( array( 'photo.jpg', 'banner.pl.png', 'report.pdf', 'no-extension' ) as $ss_name ) {
+		ss_check( ! Simple_Storage_Paths::is_excluded( '2016/04/' . $ss_name ), 'goes: ' . $ss_name );
+	}
+	add_filter( 'simple_storage_excluded_file', '__return_false' );
+	ss_check( ! Simple_Storage_Paths::is_excluded( '2016/04/debug.log' ), 'a filter decides otherwise' );
+	remove_filter( 'simple_storage_excluded_file', '__return_false' );
+
+	ss_write( $ss_uploads . '/2016/04/keep.php', '<?php // Not for a public storage.' );
+	ss_write( $ss_uploads . '/2016/04/plain.txt', 'an ordinary file' );
+	$ss_expected['2016/04/plain.txt'] = hash( 'sha256', 'an ordinary file' );
+	$ss_job = ss_run_job( 'push' );
+	clearstatcache();
+	ss_check( is_file( $ss_uploads . '/2016/04/keep.php' ) && ! file_exists( ss_remote( '2016/04/keep.php' ) ) && ss_remote_only( '2016/04/plain.txt' ), 'a transfer leaves a PHP file where it is and moves the rest' );
+	ss_check( str_contains( implode( ' ', (array) $ss_job['warnings'] ), '2016/04/keep.php' ), 'and says so', $ss_job['warnings'] );
+	ss_offload( '2016/04', array( '2016/04/keep.php' ) );
+	$ss_lock = Simple_Storage_Jobs::lock();
+	Simple_Storage_Runner::queue_path( '2016/04/keep.php' );
+	Simple_Storage_Media::offload_paths_now( '2016/04', array( '2016/04/keep.php' ), 0.0 );
+	Simple_Storage_Jobs::unlock( $ss_lock );
+	Simple_Storage_Media::offload_paths_now( '2016/04', array( '2016/04/keep.php' ), 0.0 );
+	Simple_Storage_Runner::run( true, 0.0, 0 );
+	clearstatcache();
+	ss_check( is_file( $ss_uploads . '/2016/04/keep.php' ) && ! file_exists( ss_remote( '2016/04/keep.php' ) ), 'the automatic offload leaves it too' );
+	file_put_contents( ss_remote( '2016/04/planted.php' ), '<?php echo "planted";' );
+	$ss_job = ss_run_job( 'index' );
+	ss_check( null === Simple_Storage_Index::get( '2016/04/planted.php' ) && str_contains( implode( ' ', (array) $ss_job['warnings'] ), '2016/04/planted.php' ), 'a PHP file found in the storage is not indexed, and that is reported', $ss_job['warnings'] );
+	Simple_Storage_Index::upsert_remote(
+		array(
+			array(
+				'path' => '2016/04/planted.php',
+				'size' => 21,
+			),
+		),
+		1
+	);
+	$ss_client = Simple_Storage_Client::create();
+	$ss_result = Simple_Storage_Transfer::download( $ss_client, (array) Simple_Storage_Index::get( '2016/04/planted.php' ) );
+	unset( $ss_client );
+	clearstatcache();
+	ss_check( is_wp_error( $ss_result ) && 'simple_storage_excluded' === $ss_result->get_error_code() && ! file_exists( $ss_uploads . '/2016/04/planted.php' ), 'a PHP file is never downloaded into uploads' );
+	Simple_Storage_Index::delete_path( '2016/04/planted.php' );
+	unlink( ss_remote( '2016/04/planted.php' ) );
+	unlink( $ss_uploads . '/2016/04/keep.php' );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+
+	ss_section( 'Names the index cannot store' );
+	ss_check( ! Simple_Storage_Paths::is_media_path( "2016/04/caf\xE9.jpg" ), 'a name that is not valid UTF-8 is no media path' );
+	$GLOBALS['wpdb']->suppress_errors( true );
+	ss_check(
+		false === Simple_Storage_Index::upsert_local(
+			array(
+				array(
+					'path'  => "2016/04/caf\xE9.jpg",
+					'size'  => 1,
+					'mtime' => 1,
+				),
+			),
+			1
+		),
+		'a batch the database refuses is reported'
+	);
+	$GLOBALS['wpdb']->suppress_errors( false );
+	$ss_refuse = static fn( $query ) => str_starts_with( ltrim( (string) $query ), 'INSERT INTO' ) && str_contains( (string) $query, 'simple_storage_files' ) ? '' : $query;
+	ss_write( $ss_uploads . '/2016/04/unsaved.bin', 'not recorded' );
+	add_filter( 'query', $ss_refuse );
+	$ss_job = ss_run_job( 'index' );
+	remove_filter( 'query', $ss_refuse );
+	ss_check( 'failed' === $ss_job['status'], 'an index that could not be saved stops the job instead of finishing it', $ss_job['status'] );
+	Simple_Storage_Jobs::cancel();
+	unlink( $ss_uploads . '/2016/04/unsaved.bin' );
+	$ss_odd = $ss_uploads . "/2016/04/caf\xE9.bin";
+	if ( false !== @file_put_contents( $ss_odd, 'x' ) ) { // The file system may refuse such a name (APFS does).
+		$ss_job = ss_run_job( 'index' );
+		ss_check( 'done' === $ss_job['status'] && str_contains( implode( ' ', (array) $ss_job['warnings'] ), 'caf%E9.bin' ), 'a file with such a name is left out and reported', $ss_job['warnings'] );
+		unlink( $ss_odd );
+	}
+
+	ss_section( 'Job states' );
+	ss_check( 'remote' === Simple_Storage_Settings::state()['mode'], 'set-up: new uploads follow into the storage' );
+	Simple_Storage_Jobs::start( 'pull' );
+	ss_check( 'local' === Simple_Storage_Settings::state()['mode'], 'a pull keeps new uploads local' );
+	Simple_Storage_Jobs::cancel();
+	ss_check( 'remote' === Simple_Storage_Settings::state()['mode'] && Simple_Storage_Media::auto_enabled(), 'a cancelled pull gives the old mode back' );
+	Simple_Storage_Jobs::start( 'index' );
+	ss_check( ! is_wp_error( Simple_Storage_Jobs::resume() ), 'a job left running after a closed tab can be picked up' );
+	Simple_Storage_Jobs::cancel();
+	Simple_Storage_Jobs::dismiss();
+	ss_check( null === Simple_Storage_Jobs::current(), 'an ended job can be dismissed' );
+	Simple_Storage_Jobs::start( 'index' );
+	Simple_Storage_Jobs::dismiss();
+	ss_check( null !== Simple_Storage_Jobs::current(), 'an active one cannot' );
+	Simple_Storage_Jobs::cancel();
+
+	$ss_lost = array();
+	for ( $ss_i = 0; $ss_i < 205; $ss_i++ ) {
+		$ss_lost[] = array(
+			'path' => '2016/05/lost-' . $ss_i . '.bin',
+			'size' => 10,
+		);
+	}
+	Simple_Storage_Index::upsert_remote( $ss_lost, 1 );
+	$ss_job = ss_run_job( 'index' );
+	ss_check( null !== Simple_Storage_Index::get( '2016/05/lost-0.bin' ) && str_contains( implode( ' ', (array) $ss_job['warnings'] ), '--confirm-missing' ), 'many files missing from a listing leave the index unchanged and name the way out', $ss_job['warnings'] );
+	$ss_job = ss_run_job( 'index', array( 'confirm_missing' => true ) );
+	ss_check( 'done' === $ss_job['status'] && null === Simple_Storage_Index::get( '2016/05/lost-0.bin' ) && null === Simple_Storage_Index::get( '2016/05/lost-204.bin' ), 'confirming forgets every file the storage no longer has', $ss_job['message'] ?? '' );
+	ss_check( ss_remote_only( '2016/02/stale.bin' ), 'and keeps the ones it has' );
+
+	ss_section( 'Serving checks' );
+	$ss_requests = 0;
+	$ss_count    = static function ( $pre, $args, $url ) use ( &$ss_requests ) {
+		if ( str_contains( (string) $url, 'simple%20storage%20check' ) ) {
+			++$ss_requests;
+		}
+
+		return $pre;
+	};
+	$ss_writes = 0;
+	$ss_state  = static function () use ( &$ss_writes ): void {
+		++$ss_writes;
+	};
+	add_filter( 'pre_http_request', $ss_count, 10, 3 );
+	add_action( 'update_option_' . Simple_Storage_Settings::STATE_OPTION, $ss_state );
+	foreach ( array( 'jpg_orig', 'jpg_orig', 'bak-1' ) as $ss_name ) {
+		ss_check( false === Simple_Storage_Delivery::ensure_extension_verified( $ss_name ), 'an extension a probe cannot carry is not verified: ' . $ss_name );
+	}
+	remove_filter( 'pre_http_request', $ss_count, 10 );
+	remove_action( 'update_option_' . Simple_Storage_Settings::STATE_OPTION, $ss_state );
+	ss_check( 0 === $ss_requests && 0 === $ss_writes, 'and costs no request and no write per file', array( $ss_requests, $ss_writes ) );
+	$ss_report = Simple_Storage_Delivery::verify_delivery( array( 'jpg_orig' ) );
+	ss_check( array() === $ss_report['ok'] && ! in_array( 'jpg_orig', Simple_Storage_Delivery::verified_extensions(), true ), 'a check of such an extension proves nothing else either', $ss_report );
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Delivery::enable();
+	ss_check( ! Simple_Storage_Media::auto_enabled(), 'serving switched on again is not proven yet' );
+	$ss_report = Simple_Storage_Delivery::verify_current();
+	ss_check( ! is_wp_error( $ss_report ) && Simple_Storage_Delivery::delivery_verified() && Simple_Storage_Media::auto_enabled(), 'the check refreshes everything and new uploads follow again', is_wp_error( $ss_report ) ? $ss_report->get_error_message() : $ss_report );
+	ss_check( 'ok' === Simple_Storage_Delivery::htaccess_status(), 'with the rules up to date' );
+	Simple_Storage_Delivery::remove_htaccess();
+	ss_check( 'missing' === Simple_Storage_Delivery::htaccess_status(), 'set-up: the rules are gone from uploads/.htaccess' );
+	Simple_Storage_Delivery::verify_current();
+	ss_check( 'ok' === Simple_Storage_Delivery::htaccess_status(), 'the check writes them again' );
+
+	ss_section( 'Settings' );
+	require_once ABSPATH . 'wp-admin/includes/template.php';
+	$ss_input                       = array_merge( Simple_Storage_Settings::get(), array( 'password' => '' ) );
+	$GLOBALS['wp_settings_errors']  = array();
+	$ss_clean                       = Simple_Storage_Settings::sanitize( array_merge( $ss_input, array( 'host' => 'my_storage.example.com' ) ) );
+	ss_check( $ss_fake_url === $ss_clean['host'] && 1 === count( $GLOBALS['wp_settings_errors'] ), 'an address that is not valid keeps the previous one and says so', $ss_clean['host'] );
+	$GLOBALS['wp_settings_errors']  = array();
+	$ss_clean                       = Simple_Storage_Settings::sanitize( array_merge( $ss_input, array( 'public_url' => 'not_valid.example.com' ) ) );
+	ss_check( '' === $ss_clean['public_url'] && 1 === count( $GLOBALS['wp_settings_errors'] ), 'for the public address too', $ss_clean['public_url'] );
+	$GLOBALS['wp_settings_errors']  = array();
+	$ss_clean                       = Simple_Storage_Settings::sanitize( array_merge( $ss_input, array( 'host' => 'https://other.example.com' ) ) );
+	ss_check( $ss_fake_url === $ss_clean['host'] && 1 === count( $GLOBALS['wp_settings_errors'] ), 'the saved password does not follow a new address', $ss_clean['host'] );
+	$GLOBALS['wp_settings_errors']  = array();
+	$ss_clean                       = Simple_Storage_Settings::sanitize( array_merge( $ss_input, array( 'host' => 'https://other.example.com', 'password' => 'new one' ) ) );
+	ss_check( 'https://other.example.com' === $ss_clean['host'] && empty( $GLOBALS['wp_settings_errors'] ), 'a new address with a password is taken', $ss_clean['host'] );
+	$GLOBALS['wp_settings_errors']  = array();
+	Simple_Storage_Settings::flush_cache();
+
+	ss_section( 'Retries and light verification' );
+	ss_write( $ss_uploads . '/2016/04/backoff.bin', random_bytes( 200 ), time() - 600 );
+	file_put_contents( $ss_fake_root . '/.fake/faults.json', wp_json_encode( array( 'fail' => '#backoff#' ) ) );
+	$ss_next = array();
+	for ( $ss_i = 0; $ss_i < 2; $ss_i++ ) {
+		wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+		Simple_Storage_Media::offload_dir( '2016/04' );
+		$ss_next[] = (int) wp_next_scheduled( Simple_Storage_Media::OFFLOAD_HOOK, array( '2016/04' ) ) - time();
+	}
+	ss_check( abs( $ss_next[0] - 900 ) < 30 && abs( $ss_next[1] - 1800 ) < 30, 'a folder that keeps failing waits twice as long each time', $ss_next );
+	unlink( $ss_fake_root . '/.fake/faults.json' );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	Simple_Storage_Media::offload_dir( '2016/04' );
+	ss_check( ss_remote_only( '2016/04/backoff.bin' ) && false === get_transient( 'simple_storage_retry_' . md5( '2016/04' ) ), 'a run that succeeds starts the count again' );
+	$ss_expected['2016/04/backoff.bin'] = hash_file( 'sha256', ss_remote( '2016/04/backoff.bin' ) );
+
+	$ss_settings                  = Simple_Storage_Settings::get();
+	$ss_settings['strict_verify'] = false;
+	update_option( Simple_Storage_Settings::OPTION, $ss_settings );
+	Simple_Storage_Settings::flush_cache();
+	file_put_contents( $ss_fake_root . '/.fake/faults.json', wp_json_encode( array( 'log_public' => '1' ) ) );
+	@unlink( $ss_fake_root . '/.fake/public-gets.log' );
+	ss_write( $ss_uploads . '/2016/04/light.bin', random_bytes( 2000 ) );
+	ss_offload( '2016/04', array( '2016/04/light.bin' ) );
+	$ss_gets = (string) @file_get_contents( $ss_fake_root . '/.fake/public-gets.log' );
+	ss_check( ss_remote_only( '2016/04/light.bin' ) && ! str_contains( $ss_gets, 'light.bin' ), 'without strict mode the file is not downloaded to verify it', $ss_gets );
+	unlink( $ss_fake_root . '/.fake/faults.json' );
+	@unlink( $ss_fake_root . '/.fake/public-gets.log' );
+	$ss_settings['strict_verify'] = true;
+	update_option( Simple_Storage_Settings::OPTION, $ss_settings );
+	Simple_Storage_Settings::flush_cache();
+	$ss_expected['2016/04/light.bin'] = hash_file( 'sha256', ss_remote( '2016/04/light.bin' ) );
+
+	ss_write( $ss_uploads . '/custom-folder/theme.txt', 'kept by a theme' );
+	ss_check( simple_storage_ensure_local( $ss_uploads . '/custom-folder/theme.txt' ) && ! simple_storage_ensure_local( $ss_uploads . '/custom-folder/missing.txt' ), 'simple_storage_ensure_local() answers for files outside the media folders too' );
+	unlink( $ss_uploads . '/custom-folder/theme.txt' );
+	rmdir( $ss_uploads . '/custom-folder' );
+
+	ss_section( 'Pull with an open name conflict' );
+	ss_write( $ss_uploads . '/2016/03/held.bin', random_bytes( 650 ) );
+	ss_offload( '2016/03', array( '2016/03/held.bin' ) );
+	$ss_original                     = hash_file( 'sha256', ss_remote( '2016/03/held.bin' ) );
+	$ss_expected['2016/03/held.bin'] = $ss_original;
+	ss_write( $ss_uploads . '/2016/03/held.bin', 'a different file with the same name' );
+	ss_run_job( 'index' );
+	ss_check( 1 === Simple_Storage_Index::get( '2016/03/held.bin' )['conflict'], 'set-up: the name conflict is recorded' );
+	ss_check( Simple_Storage_Index::totals( array( 'local' => 0, 'remote' => 1 ) )['files'] + 1 === Simple_Storage_Index::remote_only_count(), 'the original counts as a file only in the storage', Simple_Storage_Index::remote_only_count() );
+	$ss_job = ss_run_job( 'pull' );
+	ss_check( 'done' === $ss_job['status'] && Simple_Storage_Delivery::active() && ! str_contains( implode( ' ', (array) $ss_job['warnings'] ), 'All files are back' ), 'a pull does not call that done, and serving stays on', $ss_job['warnings'] );
+	unlink( $ss_uploads . '/2016/03/held.bin' );
+	ss_run_job( 'index' );
+	$ss_response = wp_remote_get( $ss_baseurl . '/2016/03/held.bin' );
+	ss_check( 200 === wp_remote_retrieve_response_code( $ss_response ) && hash( 'sha256', wp_remote_retrieve_body( $ss_response ) ) === $ss_original, 'once the conflict is resolved the original is served at its address', wp_remote_retrieve_response_code( $ss_response ) );
+
 	ss_section( 'Pull' );
 	$ss_job   = ss_run_job( 'pull' );
 	$ss_stats = Simple_Storage_Index::stats();
@@ -1776,6 +2107,7 @@ try {
 	foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_storage_job', 'simple_storage_lock', 'simple_storage_log', 'simple_storage_token', 'simple_storage_scan_seq', 'simple_storage_regenerating' ) as $ss_option ) {
 		delete_option( $ss_option );
 	}
+	delete_option( Simple_Storage_Plugin::VERSION_OPTION );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Timber::GENERATE_HOOK );

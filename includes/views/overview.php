@@ -78,7 +78,10 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 						<p class="description" data-ss="engine"></p>
 						<p class="description" data-ss="verified"></p>
 						<p class="description" data-ss="htaccess"></p>
-						<p data-ss="probe-wrap" hidden><button type="button" class="button button-small" data-ss="probe"></button></p>
+						<p class="ss-checks" data-ss="checks" hidden>
+						<button type="button" class="button button-small" data-ss="verify"></button>
+						<button type="button" class="button button-small" data-ss="probe"></button>
+					</p>
 					</td>
 				</tr>
 				<tr>
@@ -125,6 +128,7 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 	<h2><?php esc_html_e( 'Files with errors', 'simple-storage' ); ?></h2>
 	<div data-ss="errors"></div>
 	<p><button type="button" class="button button-small" data-ss-clear="errors"><?php esc_html_e( 'Clear the error list', 'simple-storage' ); ?></button></p>
+	<p class="description"><?php esc_html_e( 'A name conflict stays on the list until one of the two files is renamed or removed and the files are indexed again.', 'simple-storage' ); ?></p>
 </section>
 
 <section class="ss-card">

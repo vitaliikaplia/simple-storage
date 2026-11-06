@@ -59,8 +59,12 @@ final class Simple_Storage_Jobs {
 		return null !== $job && in_array( $job['status'], array( 'running', 'paused', 'failed' ), true );
 	}
 
-	/** @return array<string, mixed>|WP_Error */
-	public static function start( string $type ) {
+	/**
+	 * @param array<string, mixed> $options confirm_missing: ask the storage about every recorded
+	 *                                      file its listing did not show, however many there are.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function start( string $type, array $options = array() ) {
 		if ( ! isset( self::PHASES[ $type ] ) ) {
 			return new WP_Error( 'simple_storage_job_type', __( 'Unknown job.', 'simple-storage' ) );
 		}
@@ -88,6 +92,8 @@ final class Simple_Storage_Jobs {
 			'local_scan'  => 0,
 			'remote_scan' => 0,
 			'remote_seen' => 0,
+			'confirm_missing' => ! empty( $options['confirm_missing'] ),
+			'skipped'     => array(),
 			'progress'    => array(),
 			'warnings'    => array(),
 			'message'     => '',
@@ -98,7 +104,9 @@ final class Simple_Storage_Jobs {
 		);
 
 		if ( 'pull' === $type ) {
-			// New uploads must stay local from now on, or they would race the download.
+			// New uploads must stay local from now on, or they would race the download. A cancelled
+			// pull gives the old mode back.
+			$job['previous_mode'] = Simple_Storage_Settings::state()['mode'];
 			Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
 		}
 
@@ -108,10 +116,15 @@ final class Simple_Storage_Jobs {
 		return $job;
 	}
 
-	/** @return array<string, mixed>|WP_Error */
+	/**
+	 * Continue a paused or failed job. A running one needs no change: nothing runs a job on its
+	 * own, so after a closed tab it waits in that state for someone to pick it up.
+	 *
+	 * @return array<string, mixed>|WP_Error
+	 */
 	public static function resume() {
 		$job = self::current();
-		if ( null === $job || ! in_array( $job['status'], array( 'paused', 'failed' ), true ) ) {
+		if ( null === $job || ! in_array( $job['status'], array( 'running', 'paused', 'failed' ), true ) ) {
 			return new WP_Error( 'simple_storage_job_none', __( 'There is no paused job.', 'simple-storage' ) );
 		}
 
@@ -136,7 +149,19 @@ final class Simple_Storage_Jobs {
 			$job['status']      = 'cancelled';
 			$job['finished_at'] = time();
 			update_option( self::OPTION, $job, false );
+			if ( 'pull' === $job['type'] && 'remote' === ( $job['previous_mode'] ?? '' ) && Simple_Storage_Delivery::active() ) {
+				// The site still serves from the storage, so new uploads follow the files there.
+				Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
+			}
 			Simple_Storage_Log::warning( self::type_label( (string) $job['type'] ) . ': ' . __( 'cancelled.', 'simple-storage' ) );
+		}
+	}
+
+	/** Forget a job that has ended, with its progress and warnings. */
+	public static function dismiss(): void {
+		$job = self::current();
+		if ( null !== $job && in_array( $job['status'], array( 'done', 'cancelled' ), true ) ) {
+			delete_option( self::OPTION );
 		}
 	}
 
@@ -156,6 +181,8 @@ final class Simple_Storage_Jobs {
 			return new WP_Error( 'simple_storage_job_locked', __( 'The job is already being processed in another request.', 'simple-storage' ) );
 		}
 
+		// The holder of the lock until now may have moved the job on: what was read above is old.
+		wp_cache_delete( self::OPTION, 'options' );
 		$job = self::current();
 		if ( null === $job || 'running' !== $job['status'] ) {
 			self::unlock( $lock );
@@ -446,14 +473,18 @@ final class Simple_Storage_Jobs {
 		return true;
 	}
 
-	/** @return bool */
+	/** @return bool|WP_Error */
 	private function phase_local_scan( float $deadline ) {
 		while ( $this->job['dir_pos'] < count( $this->job['dirs'] ) ) {
 			$dir                  = (string) $this->job['dirs'][ $this->job['dir_pos'] ];
 			$this->job['current'] = $dir;
 
-			$files = self::scan_local_dir( $dir );
-			Simple_Storage_Index::upsert_local( $files, (int) $this->job['local_scan'] );
+			$skipped = array();
+			$files   = self::scan_local_dir( $dir, $skipped );
+			if ( ! Simple_Storage_Index::upsert_local( $files, (int) $this->job['local_scan'] ) ) {
+				return self::index_error();
+			}
+			$this->note_skipped( $skipped );
 
 			$this->job['progress']['local_scan']['bytes'] += array_sum( array_column( $files, 'size' ) );
 			++$this->job['progress']['local_scan']['done'];
@@ -467,12 +498,59 @@ final class Simple_Storage_Jobs {
 		return true;
 	}
 
+	private static function index_error(): WP_Error {
+		global $wpdb;
+
+		/* translators: %s: database error. */
+		return new WP_Error( 'simple_storage_index', sprintf( __( 'The index could not be saved: %s', 'simple-storage' ), (string) $wpdb->last_error ) );
+	}
+
+	/**
+	 * Remember what a scan left out, by reason: the count and the first few paths.
+	 *
+	 * @param array<string, array<int, string>> $skipped
+	 */
+	private function note_skipped( array $skipped ): void {
+		foreach ( $skipped as $reason => $paths ) {
+			$note = $this->job['skipped'][ $reason ] ?? array(
+				'count' => 0,
+				'paths' => array(),
+			);
+
+			$note['count'] += count( $paths );
+			$note['paths']  = array_slice( array_merge( $note['paths'], $paths ), 0, 5 );
+
+			$this->job['skipped'][ $reason ] = $note;
+		}
+	}
+
+	/**
+	 * Say what a scan left out, once: nothing must stay behind without anyone knowing.
+	 */
+	private function warn_skipped(): void {
+		$messages = array(
+			/* translators: 1: number of files, 2: list of paths. */
+			'excluded' => __( '%1$d files were left out: code and data files stay out of the public storage (filter simple_storage_excluded_file). %2$s', 'simple-storage' ),
+			/* translators: 1: number of files, 2: list of paths. */
+			'invalid'  => __( '%1$d files were left out: their names are not valid UTF-8, so the index cannot record them. Rename them. %2$s', 'simple-storage' ),
+		);
+
+		foreach ( (array) ( $this->job['skipped'] ?? array() ) as $reason => $note ) {
+			if ( isset( $messages[ $reason ] ) ) {
+				$this->warn( sprintf( $messages[ $reason ], (int) $note['count'], implode( ', ', (array) $note['paths'] ) ) );
+			}
+		}
+		$this->job['skipped'] = array();
+	}
+
 	/**
 	 * Every regular media file below one YYYY/MM folder; symlinks and hidden files are skipped.
 	 *
+	 * @param array<string, array<int, string>>|null $skipped Files left out for a reason someone
+	 *                                                        should hear about, by reason.
 	 * @return array<int, array{path: string, size: int, mtime: int}>
 	 */
-	public static function scan_local_dir( string $dir ): array {
+	public static function scan_local_dir( string $dir, ?array &$skipped = null ): array {
 		$root  = Simple_Storage_Paths::local( $dir );
 		$files = array();
 		if ( ! is_dir( $root ) ) {
@@ -493,6 +571,15 @@ final class Simple_Storage_Jobs {
 
 			$relative = Simple_Storage_Paths::relative_from_local( $file->getPathname() );
 			if ( null === $relative ) {
+				if ( null !== $skipped && '' === wp_check_invalid_utf8( $file->getPathname() ) ) {
+					$skipped['invalid'][] = $dir . '/' . rawurlencode( $file->getFilename() );
+				}
+				continue;
+			}
+			if ( Simple_Storage_Paths::is_excluded( $relative ) ) {
+				if ( null !== $skipped ) {
+					$skipped['excluded'][] = $relative;
+				}
 				continue;
 			}
 
@@ -508,6 +595,8 @@ final class Simple_Storage_Jobs {
 
 	/** @return bool */
 	private function phase_local_cleanup( float $deadline ) {
+		$this->warn_skipped();
+
 		$removed = Simple_Storage_Index::finish_local_scan( (int) $this->job['local_scan'] );
 		Simple_Storage_Settings::update_state( array( 'last_index' => time() ) );
 		if ( $removed > 0 ) {
@@ -590,15 +679,23 @@ final class Simple_Storage_Jobs {
 			$files = array();
 			foreach ( is_wp_error( $items ) ? array() : $items as $item ) {
 				$relative = $item['directory'] ? null : Simple_Storage_Paths::relative_from_remote( $item['path'] );
-				if ( null !== $relative ) {
-					$files[] = array(
-						'path' => $relative,
-						'size' => $item['size'],
-					);
+				if ( null === $relative ) {
+					continue;
 				}
+				if ( Simple_Storage_Paths::is_excluded( $relative ) ) {
+					// Nothing the site put there: it must not come back through the index.
+					$this->note_skipped( array( 'excluded' => array( $relative ) ) );
+					continue;
+				}
+				$files[] = array(
+					'path' => $relative,
+					'size' => $item['size'],
+				);
 			}
 
-			Simple_Storage_Index::upsert_remote( $files, (int) $this->job['remote_scan'] );
+			if ( ! Simple_Storage_Index::upsert_remote( $files, (int) $this->job['remote_scan'] ) ) {
+				return $this->remote_failure( self::index_error() );
+			}
 			$this->job['remote_seen'] += count( $files );
 			$this->job['progress']['remote_scan']['bytes'] += array_sum( array_column( $files, 'size' ) );
 			++$this->job['progress']['remote_scan']['done'];
@@ -612,15 +709,18 @@ final class Simple_Storage_Jobs {
 		return true;
 	}
 
-	/** @return bool */
+	/** @return bool|WP_Error */
 	private function phase_remote_cleanup( float $deadline ) {
+		$this->warn_skipped();
+
+		$force = ! empty( $this->job['confirm_missing'] );
 		$known = Simple_Storage_Index::totals( array( 'remote' => 1 ) )['files'];
-		if ( 0 === (int) $this->job['remote_seen'] && $known > 0 ) {
+		if ( 0 === (int) $this->job['remote_seen'] && $known > 0 && ! $force ) {
 			// An empty listing for a site that has files in the storage is far likelier to be a
 			// wrong folder or a storage problem than real loss; keep the index as it is.
 			$this->warn(
 				/* translators: %d: number of files. */
-				sprintf( __( 'The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting.', 'simple-storage' ), $known )
+				sprintf( __( 'The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting. If the files are really gone, run: wp simple-storage index --confirm-missing', 'simple-storage' ), $known )
 			);
 
 			return true;
@@ -630,10 +730,10 @@ final class Simple_Storage_Jobs {
 		// hiccup); before the index forgets a remote copy, the storage is asked about it directly.
 		$scan   = (int) $this->job['remote_scan'];
 		$unseen = Simple_Storage_Index::count_unseen_remote( $scan );
-		if ( $unseen > self::UNSEEN_CONFIRM_LIMIT ) {
+		if ( $unseen > self::UNSEEN_CONFIRM_LIMIT && ! $force ) {
 			$this->warn(
 				/* translators: %d: number of files. */
-				sprintf( __( '%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats.', 'simple-storage' ), $unseen )
+				sprintf( __( '%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats. If the files are really gone, run: wp simple-storage index --confirm-missing', 'simple-storage' ), $unseen )
 			);
 
 			return true;
@@ -643,19 +743,28 @@ final class Simple_Storage_Jobs {
 			if ( is_wp_error( $client ) ) {
 				return $this->remote_failure( $client );
 			}
-			foreach ( Simple_Storage_Index::unseen_remote( $scan, self::UNSEEN_CONFIRM_LIMIT ) as $row ) {
-				$stat = $client->stat( Simple_Storage_Paths::remote( (string) $row['path'] ) );
-				if ( is_wp_error( $stat ) ) {
-					return $this->remote_failure( $stat );
+			// Row by row from a cursor: with many files this takes more than one step.
+			while ( array() !== ( $rows = Simple_Storage_Index::unseen_remote( $scan, self::BATCH, (int) $this->job['cursor'] ) ) ) {
+				foreach ( $rows as $row ) {
+					$this->job['cursor'] = (int) $row['id'];
+
+					$stat = $client->stat( Simple_Storage_Paths::remote( (string) $row['path'] ) );
+					if ( is_wp_error( $stat ) ) {
+						return $this->remote_failure( $stat );
+					}
+					if ( $stat['exists'] && ! $stat['directory'] ) {
+						Simple_Storage_Index::update(
+							(int) $row['id'],
+							array(
+								'remote_scan' => $scan,
+								'remote_size' => $stat['size'] ?? $row['remote_size'],
+							)
+						);
+					}
+					self::heartbeat();
 				}
-				if ( $stat['exists'] && ! $stat['directory'] ) {
-					Simple_Storage_Index::update(
-						(int) $row['id'],
-						array(
-							'remote_scan' => $scan,
-							'remote_size' => $stat['size'] ?? $row['remote_size'],
-						)
-					);
+				if ( microtime( true ) >= $deadline ) {
+					return false;
 				}
 			}
 		}
@@ -889,7 +998,7 @@ final class Simple_Storage_Jobs {
 			$this->warn( __( 'All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear.', 'simple-storage' ) );
 		} else {
 			/* translators: %d: number of files. */
-			$this->warn( sprintf( __( '%d files are still only in the storage, so serving from the storage stays on. Check the errors and run the transfer again.', 'simple-storage' ), $remaining ) );
+			$this->warn( sprintf( __( '%d files are still only in the storage, name conflicts included, so serving from the storage stays on. Check the errors and run the transfer again.', 'simple-storage' ), $remaining ) );
 		}
 
 		return true;

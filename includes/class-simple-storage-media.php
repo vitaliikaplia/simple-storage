@@ -36,6 +36,9 @@ final class Simple_Storage_Media {
 	/** A folder run cut short this many times in a row is not retried by a lease any more. */
 	private const MAX_LEASES = 3;
 
+	/** Longest pause between runs of a folder whose files keep failing. */
+	private const MAX_RETRY_DELAY = 6 * HOUR_IN_SECONDS;
+
 	/** Option holding the time a `wp media regenerate` run last showed signs of life. */
 	public const REGENERATING_OPTION = 'simple_storage_regenerating';
 
@@ -354,7 +357,7 @@ final class Simple_Storage_Media {
 		$moved      = 0;
 		$skip       = self::transient_files( $dir );
 		foreach ( $files as $file ) {
-			if ( isset( $skip[ $file['path'] ] ) ) {
+			if ( isset( $skip[ $file['path'] ] ) || Simple_Storage_Paths::is_excluded( $file['path'] ) ) {
 				continue;
 			}
 			if ( microtime( true ) >= $deadline ) {
@@ -403,9 +406,15 @@ final class Simple_Storage_Media {
 		}
 		// The folder's event is never cleared here: another request may have counted on it.
 		if ( $failed ) {
-			self::schedule( $dir, 15 * MINUTE_IN_SECONDS );
-		} elseif ( $pending ) {
-			self::schedule( $dir, self::DELAY );
+			self::schedule( $dir, self::retry_delay( $dir ) );
+		} else {
+			if ( null === $only ) {
+				// Only a run of the whole folder shows that nothing in it is failing any more.
+				delete_transient( self::retry_key( $dir ) );
+			}
+			if ( $pending ) {
+				self::schedule( $dir, self::DELAY );
+			}
 		}
 		if ( $wait_until > 0 ) {
 			// Should the browser never finish, the files go once the wait runs out.
@@ -414,6 +423,21 @@ final class Simple_Storage_Media {
 		if ( $leased ) {
 			self::end_lease( $dir, $own_lease );
 		}
+	}
+
+	private static function retry_key( string $dir ): string {
+		return 'simple_storage_retry_' . md5( $dir );
+	}
+
+	/**
+	 * Fifteen minutes after a failure, twice that after each further one in a row: a file that can
+	 * never pass (a copy the storage keeps corrupting) must not be sent again and again all day.
+	 */
+	private static function retry_delay( string $dir ): int {
+		$failures = (int) get_transient( self::retry_key( $dir ) );
+		set_transient( self::retry_key( $dir ), $failures + 1, DAY_IN_SECONDS );
+
+		return (int) min( self::MAX_RETRY_DELAY, 15 * MINUTE_IN_SECONDS * 2 ** min( $failures, 8 ) );
 	}
 
 	/**
@@ -604,8 +628,8 @@ final class Simple_Storage_Media {
 
 	/** The media modal finishes the sizes of an upload whose request died, from the original. */
 	public static function before_subsizes_ajax(): void {
-		$attachment_id = (int) ( $_POST['attachment_id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
-		if ( $attachment_id <= 0 || ! current_user_can( 'edit_post', $attachment_id ) ) {
+		$attachment_id = (int) ( $_POST['attachment_id'] ?? 0 ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		if ( $attachment_id <= 0 || ! current_user_can( 'edit_post', $attachment_id ) || false === check_ajax_referer( 'media-form', false, false ) ) {
 			return;
 		}
 
@@ -741,7 +765,8 @@ final class Simple_Storage_Media {
 
 	/** Regenerate Thumbnails 2.x regenerates one image per admin-ajax request. */
 	public static function before_regenerate_ajax(): void {
-		$attachment_id = (int) ( $_REQUEST['id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
+		// That plugin sends no nonce here, only a POST: a link or an image on another site is not one.
+		$attachment_id = (int) ( $_POST['id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
 		if ( $attachment_id <= 0 || ! current_user_can( 'edit_post', $attachment_id ) ) {
 			return;
 		}
@@ -1070,10 +1095,12 @@ final class Simple_Storage_Media {
 			return $filename;
 		}
 
+		// The disk decides, not the local flag: a row can still call local a file that is gone (it
+		// was removed by hand), and the new file would then go over the only copy in the storage.
 		$taken = array();
 		foreach ( Simple_Storage_Index::in_dir( $relative_dir ) as $path => $row ) {
-			if ( $row['remote'] && ! $row['local'] ) {
-				$taken[] = strtolower( basename( (string) $path ) );
+			if ( $row['remote'] && ( ! $row['local'] || ! file_exists( Simple_Storage_Paths::local( (string) $path ) ) ) ) {
+				$taken[] = strtolower( wp_basename( (string) $path ) );
 			}
 		}
 		if ( empty( $taken ) ) {
@@ -1195,7 +1222,7 @@ final class Simple_Storage_Media {
 		$client = null;
 		foreach ( array_unique( $paths ) as $relative ) {
 			$row = Simple_Storage_Index::get( $relative );
-			if ( null === $row || ! $row['remote'] || ! self::remote_is_copy_of_local( $row ) || self::deletion_vetoed( $relative ) ) {
+			if ( null === $row || ! self::has_remote_object( $row ) || ! self::remote_is_copy_of_local( $row ) || self::deletion_vetoed( $relative ) ) {
 				continue;
 			}
 
@@ -1270,6 +1297,17 @@ final class Simple_Storage_Media {
 		}
 
 		return array_values( array_unique( $derived ) );
+	}
+
+	/**
+	 * Whether the storage may hold an object for a row: a current copy, or the old version of a
+	 * file changed locally since (remote is 0 then, but the object is there until something
+	 * overwrites it, and it must not outlive the attachment).
+	 *
+	 * @param array<string, mixed> $row
+	 */
+	private static function has_remote_object( array $row ): bool {
+		return $row['remote'] || null !== $row['remote_size'];
 	}
 
 	/** Whether the remote object of a row is a copy of what is (or was) the local file. @param array<string, mixed> $row */
@@ -1428,7 +1466,7 @@ final class Simple_Storage_Media {
 			return $file;
 		}
 
-		if ( $row['remote'] ) {
+		if ( self::has_remote_object( $row ) ) {
 			$client  = Simple_Storage_Client::create();
 			$deleted = is_wp_error( $client ) ? $client : $client->delete_file( Simple_Storage_Paths::remote( $relative ) );
 			if ( is_wp_error( $deleted ) ) {

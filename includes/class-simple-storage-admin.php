@@ -20,7 +20,7 @@ final class Simple_Storage_Admin {
 		add_action( 'admin_notices', array( self::class, 'notices' ) );
 		add_filter( 'plugin_action_links_' . SIMPLE_STORAGE_BASENAME, array( self::class, 'action_links' ) );
 
-		foreach ( array( 'state', 'job', 'test', 'delivery', 'probe', 'clear' ) as $action ) {
+		foreach ( array( 'state', 'job', 'test', 'delivery', 'probe', 'verify', 'clear' ) as $action ) {
 			add_action( 'wp_ajax_simple_storage_' . $action, array( self::class, 'ajax_' . $action ) );
 		}
 	}
@@ -89,25 +89,11 @@ final class Simple_Storage_Admin {
 			Simple_Storage_Index::reset_verification();
 		}
 
-		if ( Simple_Storage_Delivery::active() && 'proxy' === Simple_Storage_Settings::delivery_mode() && ! Simple_Storage_Delivery::probe_is_current() ) {
-			// The address, folder or mode changed: find the proxy engine for the new target.
-			Simple_Storage_Delivery::sync();
-			Simple_Storage_Delivery::probe_proxy();
-		} else {
-			Simple_Storage_Delivery::sync();
-		}
-
+		// Serving must be proven again for the new settings before new uploads may leave. The same
+		// runs from the "Check serving" button: WordPress calls this hook only for a real change.
 		if ( Simple_Storage_Delivery::active() ) {
-			// Serving must be proven again for the new settings before new uploads may leave.
-			Simple_Storage_Delivery::verify_delivery( self::extensions_to_verify() );
+			Simple_Storage_Delivery::verify_current();
 		}
-	}
-
-	/** @return array<int, string> Extensions of the files the site serves (or will serve) from the storage. */
-	private static function extensions_to_verify(): array {
-		$extensions = Simple_Storage_Index::extensions( array( 'remote' => 1 ), 20 );
-
-		return empty( $extensions ) ? array( 'txt' ) : $extensions;
 	}
 
 	public static function assets( string $hook ): void {
@@ -136,8 +122,9 @@ final class Simple_Storage_Admin {
 			return;
 		}
 
+		// An index job counts too: while it waits, new uploads stay on the disk.
 		$job = Simple_Storage_Jobs::current();
-		if ( null === $job || ! in_array( $job['status'], array( 'running', 'paused', 'failed' ), true ) || 'index' === $job['type'] ) {
+		if ( null === $job || ! Simple_Storage_Jobs::is_active() ) {
 			return;
 		}
 
@@ -215,7 +202,7 @@ final class Simple_Storage_Admin {
 				'local_only'  => $format( $stats['local_only'] ),
 				'both'        => $format( $stats['both'] ),
 				'remote_only' => $format( $stats['remote_only'] ),
-				'errors'      => number_format_i18n( (int) $stats['errors'] ),
+				'errors'      => $text( number_format_i18n( (int) $stats['errors'] ) ),
 				'indexed'     => $settings['last_index'] ? wp_date( 'd.m.Y H:i', $settings['last_index'] ) : '',
 				'raw'         => array(
 					'total'       => $stats['total']['files'],
@@ -236,6 +223,7 @@ final class Simple_Storage_Admin {
 			'proxyProbed'  => ! empty( $settings['proxy']['time'] ) && Simple_Storage_Delivery::probe_is_current() ? wp_date( 'd.m.Y H:i', (int) $settings['proxy']['time'] ) : '',
 			'htaccess'    => Simple_Storage_Delivery::active() ? Simple_Storage_Delivery::htaccess_status() : '',
 			'auto'        => Simple_Storage_Media::auto_enabled(),
+			'autoHeld'    => Simple_Storage_Jobs::is_active(),
 			'mode'        => $settings['mode'],
 			'errors'      => Simple_Storage_Index::errors( 20 ),
 			'log'         => $log,
@@ -252,9 +240,11 @@ final class Simple_Storage_Admin {
 		}
 
 		$phases   = array();
+		$failed   = 0;
 		$measured = Simple_Storage_Jobs::measured_phases();
 		foreach ( $job['phases'] as $index => $phase ) {
 			$progress = $job['progress'][ $phase ] ?? array();
+			$failed  += (int) ( $progress['failed'] ?? 0 );
 			$state    = $index < $job['phase'] ? 'done' : ( $index === $job['phase'] ? 'current' : 'pending' );
 			if ( 'done' === $job['status'] ) {
 				$state = 'done';
@@ -280,12 +270,16 @@ final class Simple_Storage_Admin {
 			'done'      => __( 'Finished', 'simple-storage' ),
 			'cancelled' => __( 'Cancelled', 'simple-storage' ),
 		);
+		if ( 'done' === $job['status'] && $failed > 0 ) {
+			$statuses['done'] = __( 'Finished with errors', 'simple-storage' );
+		}
 
 		return array(
 			'type'        => $job['type'],
 			'label'       => Simple_Storage_Jobs::type_label( (string) $job['type'] ),
 			'status'      => $job['status'],
 			'statusLabel' => $statuses[ $job['status'] ] ?? $job['status'],
+			'failed'      => $failed,
 			'phases'      => $phases,
 			'current'     => (string) $job['current'],
 			'message'     => (string) $job['message'],
@@ -305,7 +299,7 @@ final class Simple_Storage_Admin {
 	}
 
 	/** @param mixed $result */
-	private static function respond( $result = null ): void {
+	private static function respond( $result = null, string $message = '' ): void {
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error(
 				array(
@@ -316,7 +310,12 @@ final class Simple_Storage_Admin {
 			);
 		}
 
-		wp_send_json_success( array( 'state' => self::state() ) );
+		wp_send_json_success(
+			array(
+				'state'   => self::state(),
+				'message' => $message,
+			)
+		);
 	}
 
 	public static function ajax_state(): void {
@@ -345,6 +344,10 @@ final class Simple_Storage_Admin {
 				break;
 			case 'cancel':
 				Simple_Storage_Jobs::cancel();
+				self::respond();
+				break;
+			case 'dismiss':
+				Simple_Storage_Jobs::dismiss();
 				self::respond();
 				break;
 		}
@@ -376,15 +379,39 @@ final class Simple_Storage_Admin {
 			if ( is_wp_error( $enabled ) ) {
 				self::respond( $enabled );
 			}
-			$report = Simple_Storage_Delivery::verify_delivery( self::extensions_to_verify() );
-			if ( ! is_wp_error( $report ) && empty( $report['ok'] ) ) {
-				self::respond( new WP_Error( 'simple_storage_delivery_check', (string) reset( $report['failed'] ) ) );
-			}
-			self::respond( $report );
+			self::respond_with_report( Simple_Storage_Delivery::verify_delivery( Simple_Storage_Delivery::extensions_to_verify() ) );
+		} elseif ( 'disable' === $do ) {
+			Simple_Storage_Delivery::disable();
+			self::respond();
 		}
 
-		Simple_Storage_Delivery::disable();
-		self::respond();
+		self::respond( new WP_Error( 'simple_storage_action', __( 'Unknown action.', 'simple-storage' ) ) );
+	}
+
+	public static function ajax_verify(): void {
+		self::verify_request();
+		self::respond_with_report( Simple_Storage_Delivery::verify_current() );
+	}
+
+	/**
+	 * Report a serving check: nothing served is an error, a part of it a warning for the page.
+	 *
+	 * @param array{ok: array<int, string>, failed: array<string, string>}|WP_Error $report
+	 */
+	private static function respond_with_report( $report ): void {
+		if ( is_wp_error( $report ) ) {
+			self::respond( $report );
+		}
+		if ( empty( $report['ok'] ) ) {
+			self::respond( new WP_Error( 'simple_storage_delivery_check', (string) reset( $report['failed'] ) ) );
+		}
+
+		$message = '';
+		if ( ! empty( $report['failed'] ) ) {
+			/* translators: %s: list of file extensions. */
+			$message = sprintf( __( 'Serving does not work for these extensions, so their files stay local: %s. See the log for details.', 'simple-storage' ), implode( ', ', array_map( 'strval', array_keys( $report['failed'] ) ) ) );
+		}
+		self::respond( null, $message );
 	}
 
 	public static function ajax_probe(): void {
@@ -436,14 +463,15 @@ final class Simple_Storage_Admin {
 			'started'          => __( 'Started:', 'simple-storage' ),
 			'finished'         => __( 'Finished:', 'simple-storage' ),
 			'networkError'     => __( 'The server did not respond. The job is paused; continue it when the connection is back.', 'simple-storage' ),
-			'keepOpen'         => __( 'Keep this tab open while the job runs. If you close it, the job pauses and can be continued later.', 'simple-storage' ),
+			'networkLost'      => __( 'The server did not respond, and the job could not be paused. It waits; open this page again when the connection is back.', 'simple-storage' ),
+			'keepOpen'         => __( 'Keep this tab open while the job runs. If you close it, the job waits until this page is opened again, and new uploads stay in WordPress until then.', 'simple-storage' ),
 			'on'               => __( 'On', 'simple-storage' ),
 			'off'              => __( 'Off', 'simple-storage' ),
 			'enable'           => __( 'Enable serving from the storage', 'simple-storage' ),
 			'disable'          => __( 'Disable serving from the storage', 'simple-storage' ),
 			'htaccessOk'       => __( 'The rules are written to uploads/.htaccess.', 'simple-storage' ),
 			'htaccessMissing'  => __( 'The rules are not in uploads/.htaccess; missing files are served only if the server passes such requests to WordPress.', 'simple-storage' ),
-			'htaccessStale'    => __( 'The rules in uploads/.htaccess are outdated; save the settings to refresh them.', 'simple-storage' ),
+			'htaccessStale'    => __( 'The rules in uploads/.htaccess are outdated; the "Check serving" button refreshes them.', 'simple-storage' ),
 			'modeProxy'        => __( 'transparent proxy, addresses unchanged', 'simple-storage' ),
 			'engineApache'     => __( 'Proxy: Apache serves the files itself, without PHP', 'simple-storage' ),
 			'enginePhp'        => __( 'Proxy: the proxy.php script (Apache cannot proxy to the storage on this server)', 'simple-storage' ),
@@ -451,17 +479,20 @@ final class Simple_Storage_Admin {
 			'probing'          => __( 'Checking…', 'simple-storage' ),
 			'checked'          => __( 'checked', 'simple-storage' ),
 			'verifiedFor'      => __( 'Serving verified for:', 'simple-storage' ),
-			'notVerified'      => __( 'Serving is not verified for the current settings yet, so new uploads stay in WordPress. Save the settings or move the files to run the check.', 'simple-storage' ),
+			'notVerified'      => __( 'Serving is not verified for the current settings yet, so new uploads stay in WordPress. Use the "Check serving" button.', 'simple-storage' ),
+			'verify'           => __( 'Check serving', 'simple-storage' ),
+			'verifyOk'         => __( 'Serving works.', 'simple-storage' ),
 			'modeDirect'       => __( 'directly from the storage', 'simple-storage' ),
 			'autoOn'           => __( 'New uploads are moved to the storage automatically.', 'simple-storage' ),
 			'autoOff'          => __( 'New uploads stay in WordPress.', 'simple-storage' ),
+			'autoHeld'         => __( 'New uploads wait in WordPress until the job on this page is finished or cancelled.', 'simple-storage' ),
 			'testing'          => __( 'Testing…', 'simple-storage' ),
 			'testOk'           => __( 'Connection works.', 'simple-storage' ),
 			'testFailed'       => __( 'Connection test failed.', 'simple-storage' ),
 			'never'            => __( 'never', 'simple-storage' ),
 			'notTested'        => __( 'Not tested yet', 'simple-storage' ),
 			'noErrors'         => __( 'No errors.', 'simple-storage' ),
-			'leave'            => __( 'A job is running. Leaving the page pauses it.', 'simple-storage' ),
+			'leave'            => __( 'A job is running. It stops until this page is opened again.', 'simple-storage' ),
 			'busy'             => __( 'The job is being processed in another tab, request or WP-CLI; this page follows its progress.', 'simple-storage' ),
 		);
 	}

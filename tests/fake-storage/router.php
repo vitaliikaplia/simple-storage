@@ -13,7 +13,9 @@
  * {root}/.fake/faults.json: {"corrupt": "<regex>", "fail": "<regex>"} — matching uploads are
  * stored truncated or answered with 503; "odd_listing", "list_fail", "list_404" — listings of
  * matching directories come back in an unknown envelope, with 500 or with 404; "rmdir_fail" —
- * deleting a matching directory is answered with 503.
+ * deleting a matching directory is answered with 503; "redirect": {"<regex>": "<location>"} —
+ * public requests for matching paths are redirected; "log_public" — public GET requests are
+ * written to {root}/.fake/public-gets.log.
  *
  * As the real storage does, a listing of a missing directory is an empty list, not a 404.
  */
@@ -161,10 +163,22 @@ if ( ! str_starts_with( $uri_path, '/~/' ) ) {
 	if ( ! $public ) {
 		fail( 403, 'Forbidden' );
 	}
+	$faults = faults( $meta );
+	foreach ( (array) ( $faults['redirect'] ?? array() ) as $pattern => $location ) {
+		if ( preg_match( '#' . $pattern . '#', $uri_path ) ) {
+			header( 'Location: ' . $location, true, 302 );
+			exit;
+		}
+	}
 	$file = local_path( $root, $uri_path );
 	if ( str_starts_with( $file, $meta ) || ! is_file( $file ) ) {
 		fail( 404, 'Not found' );
 	}
+	if ( 'GET' === $method && ! empty( $faults['log_public'] ) ) {
+		file_put_contents( $meta . '/public-gets.log', $uri_path . "\n", FILE_APPEND );
+	}
+	// Lets tests/apache-proxy.sh see that a cookie of the storage does not reach visitors.
+	header( 'Set-Cookie: fake-storage=1' );
 	// Conditional and range requests as the documentation describes them for downloads.
 	$size  = filesize( $file );
 	$mtime = filemtime( $file );

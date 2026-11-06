@@ -47,10 +47,16 @@ final class Simple_Storage_CLI {
 	/**
 	 * Index the media files (and the storage, when configured).
 	 *
+	 * ## OPTIONS
+	 *
+	 * [--confirm-missing]
+	 * : Ask the storage about every recorded file its listing did not show, however many there
+	 * are, and forget the ones it no longer has.
+	 *
 	 * @when after_wp_load
 	 */
-	public function index(): void {
-		$this->run_job( 'index' );
+	public function index( array $args = array(), array $assoc = array() ): void {
+		$this->run_job( 'index', array( 'confirm_missing' => ! empty( $assoc['confirm-missing'] ) ) );
 	}
 
 	/**
@@ -127,14 +133,26 @@ final class Simple_Storage_CLI {
 			if ( is_wp_error( $result ) ) {
 				WP_CLI::error( $result->get_error_message() );
 			}
+			// New uploads follow into the storage only once serving is proven.
+			$report = Simple_Storage_Delivery::verify_current();
+			if ( is_wp_error( $report ) ) {
+				WP_CLI::error( $report->get_error_message() );
+			}
+			foreach ( $report['failed'] as $extension => $message ) {
+				WP_CLI::warning( ( '' !== (string) $extension ? '.' . $extension . ': ' : '' ) . $message );
+			}
+			if ( empty( $report['ok'] ) ) {
+				WP_CLI::error( 'Serving could not be verified.' );
+			}
 		} else {
 			Simple_Storage_Delivery::disable();
 		}
 		WP_CLI::success( 'Serving from the storage: ' . $args[0] . '.' );
 	}
 
-	private function run_job( string $type ): void {
-		$job = Simple_Storage_Jobs::start( $type );
+	/** @param array<string, mixed> $options */
+	private function run_job( string $type, array $options = array() ): void {
+		$job = Simple_Storage_Jobs::start( $type, $options );
 		if ( is_wp_error( $job ) ) {
 			WP_CLI::error( $job->get_error_message() );
 		}

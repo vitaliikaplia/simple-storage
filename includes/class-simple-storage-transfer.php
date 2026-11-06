@@ -22,6 +22,10 @@ final class Simple_Storage_Transfer {
 		$path  = (string) $row['path'];
 		$local = Simple_Storage_Paths::local( $path );
 
+		if ( Simple_Storage_Paths::is_excluded( $path ) ) {
+			return self::fail( $row, self::excluded() );
+		}
+
 		clearstatcache( true, $local );
 		if ( ! is_file( $local ) ) {
 			self::forget_local( $row );
@@ -117,8 +121,15 @@ final class Simple_Storage_Transfer {
 			return self::fail( $row, new WP_Error( 'simple_storage_size', __( 'The remote copy is missing or has a different size; it will be uploaded again.', 'simple-storage' ) ) );
 		}
 
-		$sha256  = (string) hash_file( 'sha256', $local );
-		$fetched = $client->fetch( Simple_Storage_Paths::public_url( $path ) );
+		// Kept in every mode: a later download is compared with it.
+		$sha256 = (string) hash_file( 'sha256', $local );
+		$strict = Simple_Storage_Settings::strict_verify();
+		$url    = Simple_Storage_Paths::public_url( $path );
+		$fetched = $strict ? $client->fetch( $url ) : $client->head( $url );
+		if ( ! $strict && ! is_wp_error( $fetched ) && null === $fetched['size'] ) {
+			// No Content-Length (a chunked answer): the size is known only after reading the body.
+			$fetched = $client->fetch( $url );
+		}
 		if ( is_wp_error( $fetched ) ) {
 			return self::fail( $row, $fetched );
 		}
@@ -129,7 +140,7 @@ final class Simple_Storage_Transfer {
 				new WP_Error( 'simple_storage_public', sprintf( __( 'The public address answered %d. Check public access in the storage panel.', 'simple-storage' ), $fetched['status'] ) )
 			);
 		}
-		if ( $fetched['size'] !== $size || ( Simple_Storage_Settings::strict_verify() && $fetched['sha256'] !== $sha256 ) ) {
+		if ( $fetched['size'] !== $size || ( $strict && $fetched['sha256'] !== $sha256 ) ) {
 			Simple_Storage_Index::update(
 				(int) $row['id'],
 				array(
@@ -201,11 +212,9 @@ final class Simple_Storage_Transfer {
 			return self::fail( $row, new WP_Error( 'simple_storage_remote_gone', __( 'The copy in the storage is missing or differs, so the local file was kept; it will be uploaded again.', 'simple-storage' ) ) );
 		}
 
-		// Deliberately not wp_delete_file(): its filter would also delete the remote copy.
-		if ( ! @unlink( $local ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.unlink_unlink
-			return self::fail( $row, new WP_Error( 'simple_storage_unlink', __( 'The local file could not be deleted.', 'simple-storage' ) ) );
-		}
-
+		// The index comes first: should the request die here, the next scan finds a file it can
+		// account for, while the other order leaves the name looking free to a new upload, which
+		// would overwrite the only copy in the storage.
 		Simple_Storage_Index::update(
 			(int) $row['id'],
 			array(
@@ -213,6 +222,13 @@ final class Simple_Storage_Transfer {
 				'error' => null,
 			)
 		);
+
+		// Deliberately not wp_delete_file(): its filter would also delete the remote copy.
+		if ( ! @unlink( $local ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.unlink_unlink
+			Simple_Storage_Index::update( (int) $row['id'], array( 'local' => 1 ) );
+
+			return self::fail( $row, new WP_Error( 'simple_storage_unlink', __( 'The local file could not be deleted.', 'simple-storage' ) ) );
+		}
 
 		return $size;
 	}
@@ -228,15 +244,13 @@ final class Simple_Storage_Transfer {
 		$local    = Simple_Storage_Paths::local( $path );
 		$expected = null !== $row['remote_size'] ? (int) $row['remote_size'] : (int) $row['size'];
 
+		if ( Simple_Storage_Paths::is_excluded( $path ) ) {
+			return self::fail( $row, self::excluded() );
+		}
+
 		clearstatcache( true, $local );
 		if ( is_file( $local ) ) {
-			if ( (int) filesize( $local ) !== $expected ) {
-				return self::fail( $row, new WP_Error( 'simple_storage_conflict', __( 'A different local file already exists at this path; it was kept and the remote copy was not downloaded.', 'simple-storage' ) ) );
-			}
-
-			self::mark_local( $row, $local, null );
-
-			return 0;
+			return self::adopt_local( $client, $row, $local, $expected );
 		}
 
 		if ( ! wp_mkdir_p( dirname( $local ) ) ) {
@@ -315,6 +329,54 @@ final class Simple_Storage_Transfer {
 		);
 
 		return $expected;
+	}
+
+	/**
+	 * A file is already where the download would put it. It counts as the copy only when its
+	 * contents are proven equal; an equal size proves nothing. Anything else is a name conflict:
+	 * both files stay, and neither is deleted as the "copy" of the other.
+	 *
+	 * @param array<string, mixed> $row
+	 * @return int|WP_Error
+	 */
+	private static function adopt_local( Simple_Storage_Client $client, array $row, string $local, int $expected ) {
+		if ( (int) filesize( $local ) === $expected ) {
+			$sha256 = (string) hash_file( 'sha256', $local );
+			$remote = (string) ( $row['sha256'] ?? '' );
+			if ( '' === $remote ) {
+				// Known only from a storage listing: the storage has to show its copy.
+				$fetched = $client->fetch( Simple_Storage_Paths::public_url( (string) $row['path'] ) );
+				if ( is_wp_error( $fetched ) ) {
+					return self::fail( $row, $fetched );
+				}
+				if ( 200 !== $fetched['status'] ) {
+					/* translators: %d: HTTP status code. */
+					return self::fail( $row, new WP_Error( 'simple_storage_public', sprintf( __( 'The public address answered %d.', 'simple-storage' ), $fetched['status'] ) ) );
+				}
+				$remote = $fetched['sha256'];
+			}
+			if ( $remote === $sha256 ) {
+				self::mark_local( $row, $local, $sha256 );
+
+				return 0;
+			}
+		}
+
+		$message = Simple_Storage_Index::conflict_message();
+		Simple_Storage_Index::update(
+			(int) $row['id'],
+			array(
+				'local'    => 1,
+				'conflict' => 1,
+				'error'    => mb_substr( $message, 0, 250 ),
+			)
+		);
+
+		return new WP_Error( 'simple_storage_conflict', $message );
+	}
+
+	private static function excluded(): WP_Error {
+		return new WP_Error( 'simple_storage_excluded', __( 'Files of this type are not moved to the storage or brought back from it.', 'simple-storage' ) );
 	}
 
 	/** @param array<string, mixed> $row */

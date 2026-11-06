@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.3
+Stable tag: 0.3.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,24 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.3.4 =
+Fixes after an audit of the plugin.
+
+* A new upload can no longer overwrite the only copy of a file in the storage when the index still calls that file local: the disk decides whether a name is free, and a local copy is recorded as gone before it goes.
+* An equal size no longer makes two files the same one. A local file in the way of a download is compared by its contents and otherwise becomes a name conflict, so a transfer never deletes it, and a file known only from a storage listing is not overwritten.
+* A transfer back with an open name conflict no longer reports that all files are back: serving stays on, so the original keeps its address once the conflict is resolved.
+* One file name that is not valid UTF-8 no longer drops up to 200 files from the index without a word: such a file is left out and reported, and an index that could not be saved stops the job.
+* An attachment deleted after its file changed takes the old version out of the storage too.
+* Code and data files (PHP and other scripts, .sql, .log, .env and the like) stay out of the public storage in both directions, and transfers report what they left out (filter simple_storage_excluded_file). The transparent proxy does not serve files a web server could run.
+* The transparent proxy sets file types itself: a file of an unknown type is a download, an SVG opened on its own runs no script, a redirect of the storage cannot reach the network of the site, and a 416 is not cached. Apache proxying is verified over HTTPS only, passes on no cookie of the storage and accepts only GET and HEAD.
+* A "Check serving" button proves serving again and refreshes the rules: saving unchanged settings never did. WP-CLI `delivery on` runs the same check.
+* An invalid storage or public address keeps the previous one and shows an error, instead of being erased under "Settings saved". A new storage address needs the password again, so the saved one is never sent to it.
+* A cancelled transfer back gives the previous mode back, so new uploads keep following into the storage. WP-CLI `resume` picks up a job left running after a closed tab, and an index job left that way is shown on other admin pages.
+* New: `wp simple-storage index --confirm-missing` asks the storage about every file its listing did not show, however many there are, and forgets the ones it no longer has.
+* Without strict verification nothing is downloaded: the size comes from the headers of the public address.
+* A folder that keeps failing waits twice as long each time, up to six hours, instead of being sent again every fifteen minutes.
+* Extensions a probe file cannot carry cost no request per file. The serving switch shows that it is working, a job with failed files no longer finishes in green, a finished job can be hidden, the "busy" notice goes away, and the page fits narrow screens.
 
 = 0.3.3 =
 * Files an upload (or a Timber size, or a theme through simple_storage_queue_offload()) writes leave the disk at the end of that same request again, once copied and verified, instead of with a folder run a minute or two later that waited for some other request; only with an image optimizer that works in the background do they wait for it (filter simple_storage_remove_at_request_end).

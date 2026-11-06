@@ -64,8 +64,12 @@ function simple_storage_ensure_local( $target ): bool {
 	}
 
 	$relative = simple_storage_media_path( (string) $target );
+	if ( null === $relative ) {
+		// Outside the year and month folders nothing ever leaves the disk.
+		return path_is_absolute( (string) $target ) && file_exists( (string) $target );
+	}
 
-	return null !== $relative && Simple_Storage_Media::ensure_local( $relative );
+	return Simple_Storage_Media::ensure_local( $relative );
 }
 
 /**

@@ -505,6 +505,57 @@ final class Simple_Storage_Client {
 	}
 
 	/**
+	 * Status and size a public URL reports, without downloading it.
+	 *
+	 * @return array{status: int, size: int|null}|WP_Error
+	 */
+	public function head( string $url ) {
+		$attempt = 0;
+		do {
+			$status = 0;
+			$size   = null;
+			$error  = null;
+
+			$curl = $this->handle();
+			curl_setopt_array(
+				$curl,
+				$this->base_options() + array(
+					CURLOPT_URL            => $url,
+					CURLOPT_NOBODY         => true,
+					CURLOPT_RETURNTRANSFER => true,
+					CURLOPT_FOLLOWLOCATION => true,
+					CURLOPT_MAXREDIRS      => 3,
+					CURLOPT_TIMEOUT        => 60,
+					CURLOPT_HEADERFUNCTION => static function ( $ch, string $line ) use ( &$status, &$size ): int {
+						if ( preg_match( '#^HTTP/\S+\s+(\d{3})#', $line, $match ) ) {
+							$status = (int) $match[1];
+							$size   = null;
+						} elseif ( preg_match( '/^content-length:\s*(\d+)/i', $line, $match ) ) {
+							$size = (int) $match[1];
+						}
+
+						return strlen( $line );
+					},
+				)
+			);
+
+			if ( false === curl_exec( $curl ) ) {
+				$error = new WP_Error( 'simple_storage_http', curl_error( $curl ) );
+			}
+			++$attempt;
+		} while ( ( null !== $error || in_array( $status, array( 429, 502, 503, 504 ), true ) ) && $attempt < self::MAX_RETRIES && self::backoff( $attempt ) );
+
+		if ( null !== $error ) {
+			return $error;
+		}
+
+		return array(
+			'status' => $status,
+			'size'   => $size,
+		);
+	}
+
+	/**
 	 * Perform one API request with token refresh on 401 and backoff on 429 and 502/503.
 	 *
 	 * @param array<string, mixed> $args query, multipart, infile + size, auth (default true).
