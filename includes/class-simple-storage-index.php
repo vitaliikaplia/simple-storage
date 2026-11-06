@@ -82,6 +82,30 @@ final class Simple_Storage_Index {
 	}
 
 	/**
+	 * Rows of these paths, keyed by path.
+	 *
+	 * @param array<int, string> $paths
+	 * @return array<string, array<string, mixed>>
+	 */
+	public static function by_paths( array $paths ): array {
+		global $wpdb;
+
+		$result = array();
+		foreach ( array_chunk( array_map( array( self::class, 'hash' ), array_values( $paths ) ), 200 ) as $hashes ) {
+			$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE path_hash IN (' . implode( ',', array_fill( 0, count( $hashes ), '%s' ) ) . ')', $hashes ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				ARRAY_A
+			);
+			foreach ( (array) $rows as $row ) {
+				$row                    = self::cast( $row );
+				$result[ $row['path'] ] = $row;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Rows whose path starts with a prefix ("2024/05/photo-"), keyed by path.
 	 *
 	 * @return array<string, array<string, mixed>>

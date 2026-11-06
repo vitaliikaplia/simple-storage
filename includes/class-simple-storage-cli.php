@@ -90,6 +90,21 @@ final class Simple_Storage_CLI {
 	}
 
 	/**
+	 * Take over files uploaded to the storage by hand: compare them with the Media Library and,
+	 * when nothing is missing, turn on serving. Nothing is copied.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--accept-missing]
+	 * : Connect although files are missing or differ in size.
+	 *
+	 * @when after_wp_load
+	 */
+	public function adopt( array $args = array(), array $assoc = array() ): void {
+		$this->run_job( 'adopt', array( 'accept_missing' => ! empty( $assoc['accept-missing'] ) ) );
+	}
+
+	/**
 	 * Continue a paused or failed job.
 	 *
 	 * @when after_wp_load
@@ -195,6 +210,18 @@ final class Simple_Storage_CLI {
 
 		foreach ( (array) $job['warnings'] as $warning ) {
 			WP_CLI::warning( $warning );
+		}
+		$report = (array) ( $job['adopt'] ?? array() );
+		foreach ( array( 'missing' => 'missing', 'mismatch' => 'different size', 'outside' => 'missing outside the media folders' ) as $kind => $label ) {
+			if ( ! empty( $report[ $kind ] ) ) {
+				WP_CLI::log( sprintf( '%s: %d', $label, $report[ $kind ] ) );
+				foreach ( (array) $report[ $kind . '_paths' ] as $path ) {
+					WP_CLI::log( '  ' . $path );
+				}
+			}
+		}
+		if ( ! empty( $report['blocked'] ) ) {
+			WP_CLI::error( (string) $job['message'] );
 		}
 		if ( 'done' === $job['status'] ) {
 			WP_CLI::success( (string) $job['message'] );

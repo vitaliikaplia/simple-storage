@@ -201,11 +201,15 @@
 
 		$( 'job-phases' ).replaceChildren(
 			...job.phases.map( ( phase ) => {
-				const unit = 'local_scan' === phase.key || 'remote_scan' === phase.key ? t.folders : t.files;
+				const adopting = 'adopt_compare' === phase.key;
+				let unit = adopting ? t.attachments : t.files;
+				if ( 'local_scan' === phase.key || 'remote_scan' === phase.key ) {
+					unit = t.folders;
+				}
 				const children = [ el( 'span', { className: 'ss-phase-label', text: phase.label } ) ];
 				if ( phase.measured && 'pending' !== phase.state ) {
-					let detail = phase.done + ' / ' + phase.total + ' ' + unit + ' · ' + phase.bytes;
-					if ( phase.total_bytes && 'local_scan' !== phase.key && 'remote_scan' !== phase.key ) {
+					let detail = phase.done + ' / ' + phase.total + ' ' + unit + ( adopting ? '' : ' · ' + phase.bytes );
+					if ( ! adopting && phase.total_bytes && 'local_scan' !== phase.key && 'remote_scan' !== phase.key ) {
 						detail += ' / ' + phase.total_bytes;
 					}
 					if ( phase.failed ) {
@@ -236,6 +240,8 @@
 			message.appendChild( el( 'p', { className: 'description', text: t.keepOpen } ) );
 		}
 
+		renderAdopt( job );
+
 		$( 'job-warnings' ).replaceChildren( ...job.warnings.map( ( warning ) => el( 'li', { text: warning } ) ) );
 
 		const buttons = [];
@@ -249,9 +255,54 @@
 			buttons.push( el( 'button', { type: 'button', className: 'button button-link-delete', 'data-ss-job': 'cancel', text: t.cancel } ) );
 		}
 		if ( 'done' === job.status ) {
+			if ( job.adopt && job.adopt.blocked ) {
+				buttons.push( el( 'button', { type: 'button', className: 'button button-primary', 'data-ss-adopt': 'again', text: t.adoptAgain } ) );
+				if ( job.adopt.found > 0 ) {
+					buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-adopt': 'accept', text: t.adoptAccept } ) );
+				}
+			}
 			buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-job': 'dismiss', text: t.close } ) );
 		}
 		$( 'job-buttons' ).replaceChildren( ...buttons );
+	}
+
+	function renderAdopt( job ) {
+		const box = $( 'job-adopt' );
+		if ( ! box ) {
+			return;
+		}
+		const report = job.adopt;
+		if ( ! report ) {
+			box.replaceChildren();
+			return;
+		}
+
+		const rows = [
+			[ t.adoptAttachments, report.attachments ],
+			[ t.adoptFiles, report.files ],
+			[ t.adoptFound, report.found ],
+			[ t.adoptOnDisk, report.on_disk ],
+			[ t.adoptMissing, report.missing ],
+			[ t.adoptMismatch, report.mismatch ],
+			[ t.adoptOutside, report.outside ],
+			[ t.adoptExtra, report.extra ],
+		].filter( ( row, index ) => index < 3 || row[ 1 ] > 0 );
+
+		const lists = [
+			[ t.adoptMissing, report.missing_paths ],
+			[ t.adoptMismatch, report.mismatch_paths ],
+			[ t.adoptOutside, report.outside_paths ],
+		].filter( ( list ) => list[ 1 ].length );
+
+		box.replaceChildren(
+			el( 'table', {}, [
+				el( 'tbody', {}, rows.map( ( row ) => el( 'tr', {}, [ el( 'th', { scope: 'row', text: row[ 0 ] } ), el( 'td', { text: String( row[ 1 ] ) } ) ] ) ) ),
+			] ),
+			...lists.flatMap( ( list ) => [
+				el( 'p', { text: list[ 0 ] } ),
+				el( 'ul', {}, list[ 1 ].map( ( path ) => el( 'li', {}, [ el( 'code', { text: path } ) ] ) ) ),
+			] )
+		);
 	}
 
 	function renderErrors() {
@@ -362,15 +413,22 @@
 		render();
 	}
 
-	async function start( type ) {
+	async function start( type, accept ) {
 		if ( 'push' === type && ! window.confirm( t.confirmPush ) ) { // eslint-disable-line no-alert
 			return;
 		}
 		if ( 'pull' === type && ! window.confirm( t.confirmPull ) ) { // eslint-disable-line no-alert
 			return;
 		}
+		if ( 'adopt' === type && ! window.confirm( accept ? t.confirmAccept : t.confirmAdopt ) ) { // eslint-disable-line no-alert
+			return;
+		}
 		try {
-			await post( 'job', { do: 'start', type } );
+			const data = { do: 'start', type };
+			if ( accept ) {
+				data.accept = '1';
+			}
+			await post( 'job', data );
 			loop();
 		} catch ( error ) {
 			notice( error.message );
@@ -452,6 +510,8 @@
 			start( target.getAttribute( 'data-ss-start' ) );
 		} else if ( target.hasAttribute( 'data-ss-job' ) ) {
 			jobAction( target.getAttribute( 'data-ss-job' ) );
+		} else if ( target.hasAttribute( 'data-ss-adopt' ) ) {
+			start( 'adopt', 'accept' === target.getAttribute( 'data-ss-adopt' ) );
 		} else if ( 'delivery-toggle' === target.getAttribute( 'data-ss' ) ) {
 			toggleDelivery( target );
 		} else if ( 'test' === target.getAttribute( 'data-ss' ) ) {

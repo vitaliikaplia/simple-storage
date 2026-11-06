@@ -108,6 +108,19 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 			<button type="button" class="button button-hero" data-ss-start="pull"><?php esc_html_e( 'Return everything to WordPress', 'simple-storage' ); ?></button>
 			<p class="description"><?php esc_html_e( 'Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads.', 'simple-storage' ); ?></p>
 		</div>
+		<div>
+			<button type="button" class="button button-hero" data-ss-start="adopt"><?php esc_html_e( 'Connect files uploaded by hand', 'simple-storage' ); ?></button>
+			<p class="description">
+				<?php
+				printf(
+					/* translators: 1: folder in the storage, 2: example path. */
+					esc_html__( 'For media that do not fit on the hosting: upload the year and month folders to %1$s yourself (FTP), for example %2$s, then press this button. It compares them with the Media Library and turns on serving. Nothing is copied.', 'simple-storage' ),
+					'<code>' . esc_html( Simple_Storage_Paths::remote_root() ) . '</code>',
+					'<code>' . esc_html( Simple_Storage_Paths::remote_root() . '/2024/05/photo.jpg' ) . '</code>'
+				);
+				?>
+			</p>
+		</div>
 	</div>
 </section>
 
@@ -120,6 +133,7 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 	<ol class="ss-phases" data-ss="job-phases"></ol>
 	<p class="ss-job-current" data-ss="job-current"></p>
 	<div data-ss="job-message"></div>
+	<div class="ss-adopt" data-ss="job-adopt"></div>
 	<ul class="ss-warnings" data-ss="job-warnings"></ul>
 	<p class="ss-job-buttons" data-ss="job-buttons"></p>
 </section>

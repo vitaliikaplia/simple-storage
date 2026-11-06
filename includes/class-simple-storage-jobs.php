@@ -4,7 +4,9 @@
  *
  * index — scan the uploads folders (and the storage, when configured) into the index;
  * push  — copy everything to the storage, verify it, enable serving from it, delete local copies;
- * pull  — download everything back, verify it, delete the remote copies, disable serving.
+ * pull  — download everything back, verify it, delete the remote copies, disable serving;
+ * adopt — take over files someone put into the storage by hand: nothing is copied, the storage is
+ *         compared with the Media Library and, when nothing is missing, serving is switched on.
  *
  * A step holds a database lock, works until its time budget runs out and saves the job, so a
  * closed tab or a failed request only pauses the job.
@@ -27,7 +29,11 @@ final class Simple_Storage_Jobs {
 		'index' => array( 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup' ),
 		'push'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'upload', 'verify', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_push' ),
 		'pull'  => array( 'check', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'download', 'delete_remote', 'prune_remote', 'finish_pull' ),
+		'adopt' => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
 	);
+
+	/** Paths of each kind kept for the report of an adopt job. */
+	private const ADOPT_SAMPLES = 20;
 
 	/** Rows that a remote scan did not list are confirmed one by one only up to this many. */
 	private const UNSEEN_CONFIRM_LIMIT = 200;
@@ -62,6 +68,7 @@ final class Simple_Storage_Jobs {
 	/**
 	 * @param array<string, mixed> $options confirm_missing: ask the storage about every recorded
 	 *                                      file its listing did not show, however many there are.
+	 *                                      accept_missing: adopt although files are missing.
 	 * @return array<string, mixed>|WP_Error
 	 */
 	public static function start( string $type, array $options = array() ) {
@@ -93,6 +100,7 @@ final class Simple_Storage_Jobs {
 			'remote_scan' => 0,
 			'remote_seen' => 0,
 			'confirm_missing' => ! empty( $options['confirm_missing'] ),
+			'accept_missing'  => ! empty( $options['accept_missing'] ),
 			'skipped'     => array(),
 			'progress'    => array(),
 			'warnings'    => array(),
@@ -266,6 +274,9 @@ final class Simple_Storage_Jobs {
 			case 'delete_remote':
 				$totals = Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1 ) );
 				break;
+			case 'adopt_compare':
+				$totals['files'] = Simple_Storage_Media::distinct_attachment_count();
+				break;
 		}
 
 		$this->job['cursor']             = 0;
@@ -280,7 +291,8 @@ final class Simple_Storage_Jobs {
 
 	private function complete_phase( string $phase ): void {
 		$progress = $this->job['progress'][ $phase ] ?? array();
-		if ( ! empty( $progress['failed'] ) ) {
+		// The comparison of an adopt job has a report of its own, not rows with errors.
+		if ( ! empty( $progress['failed'] ) && 'adopt_compare' !== $phase ) {
 			Simple_Storage_Log::warning(
 				/* translators: 1: phase name, 2: number of files. */
 				sprintf( __( '%1$s: %2$d files failed; see the error list.', 'simple-storage' ), self::phase_label( $phase ), (int) $progress['failed'] )
@@ -303,7 +315,9 @@ final class Simple_Storage_Jobs {
 		}
 
 		$message = self::type_label( (string) $this->job['type'] ) . ': ' . __( 'finished.', 'simple-storage' );
-		if ( $failed > 0 ) {
+		if ( 'adopt' === $this->job['type'] ) {
+			$message = self::adopt_message( (array) ( $this->job['adopt'] ?? array() ) );
+		} elseif ( $failed > 0 ) {
 			/* translators: %d: number of files. */
 			$message .= ' ' . sprintf( _n( '%d file failed.', '%d files failed.', $failed, 'simple-storage' ), $failed );
 		}
@@ -416,7 +430,8 @@ final class Simple_Storage_Jobs {
 
 	/** @return bool|WP_Error */
 	private function phase_check( float $deadline ) {
-		if ( 'push' === $this->job['type'] ) {
+		// Both depend on the public address as well: test it before anything is decided.
+		if ( in_array( $this->job['type'], array( 'push', 'adopt' ), true ) ) {
 			$report = Simple_Storage_Tester::run();
 			if ( ! $report['ok'] ) {
 				$last = end( $report['steps'] );
@@ -834,6 +849,140 @@ final class Simple_Storage_Jobs {
 		);
 	}
 
+	/**
+	 * Compare the storage with what the Media Library needs, attachment by attachment. A file counts
+	 * as there when the storage has it or it is on the disk (some may have stayed on the site).
+	 *
+	 * @return bool
+	 */
+	private function phase_adopt_compare( float $deadline ) {
+		if ( ! isset( $this->job['adopt'] ) ) {
+			$this->job['adopt'] = array(
+				'attachments'    => 0,
+				'files'          => 0,
+				'found'          => 0,
+				'on_disk'        => 0,
+				'missing'        => 0,
+				'mismatch'       => 0,
+				'outside'        => 0,
+				'extra'          => 0,
+				'missing_paths'  => array(),
+				'mismatch_paths' => array(),
+				'outside_paths'  => array(),
+				'blocked'        => false,
+				'folder'         => Simple_Storage_Paths::remote_root(),
+			);
+		}
+
+		while ( microtime( true ) < $deadline ) {
+			$ids = Simple_Storage_Media::distinct_attachments( (int) $this->job['cursor'], self::BATCH );
+			if ( empty( $ids ) ) {
+				$this->conclude_adopt();
+
+				return true;
+			}
+
+			foreach ( $ids as $id ) {
+				$this->job['cursor'] = $id;
+				$this->compare_attachment( $id );
+				wp_cache_delete( $id, 'post_meta' );
+				++$this->job['progress']['adopt_compare']['done'];
+				self::heartbeat();
+			}
+		}
+
+		return false;
+	}
+
+	private function compare_attachment( int $id ): void {
+		$report   = &$this->job['adopt'];
+		$attached = (string) get_post_meta( $id, '_wp_attached_file', true );
+
+		$this->job['current'] = $attached;
+		++$report['attachments'];
+
+		if ( ! Simple_Storage_Paths::is_media_path( $attached ) ) {
+			// Outside the year and month folders nothing moves: such a file has to be on the disk.
+			if ( ! file_exists( Simple_Storage_Paths::local( $attached ) ) ) {
+				$this->note_adopt( 'outside', $attached );
+			}
+
+			return;
+		}
+
+		$expected = Simple_Storage_Media::expected_files( $id );
+		$rows     = Simple_Storage_Index::by_paths( array_keys( $expected ) );
+		foreach ( $expected as $path => $size ) {
+			$path = (string) $path;
+			$row  = $rows[ $path ] ?? null;
+			++$report['files'];
+
+			if ( null !== $row && $row['remote'] && ! $row['conflict'] ) {
+				++$report['found'];
+				if ( null !== $size && (int) $row['remote_size'] !== $size ) {
+					$this->note_adopt( 'mismatch', $path );
+				}
+			} elseif ( file_exists( Simple_Storage_Paths::local( $path ) ) ) {
+				++$report['on_disk'];
+			} else {
+				$this->note_adopt( 'missing', $path );
+			}
+		}
+	}
+
+	private function note_adopt( string $kind, string $path ): void {
+		++$this->job['adopt'][ $kind ];
+		if ( count( $this->job['adopt'][ $kind . '_paths' ] ) < self::ADOPT_SAMPLES ) {
+			$this->job['adopt'][ $kind . '_paths' ][] = $path;
+		}
+	}
+
+	/**
+	 * Decide on the comparison. Anything missing stops here with nothing changed, unless it was
+	 * accepted: sizes that were never generated are missing on the old site as well. With no file
+	 * of the Media Library in the storage there is nothing to accept: the folder is wrong.
+	 */
+	private function conclude_adopt(): void {
+		$report = &$this->job['adopt'];
+
+		$report['extra'] = max( 0, Simple_Storage_Index::totals( array( 'local' => 0, 'remote' => 1 ) )['files'] - (int) $report['found'] );
+
+		$problems          = (int) $report['missing'] + (int) $report['mismatch'] + (int) $report['outside'];
+		$report['blocked'] = 0 === (int) $report['found'] || ( $problems > 0 && empty( $this->job['accept_missing'] ) );
+
+		$this->job['progress']['adopt_compare']['failed'] = $problems;
+		if ( $report['blocked'] ) {
+			$this->job['skipped_phases'] = array( 'enable_delivery', 'check_delivery' );
+			$this->job['phase']          = (int) array_search( 'check_delivery', $this->job['phases'], true );
+		}
+	}
+
+	/** @param array<string, mixed> $report */
+	private static function adopt_message( array $report ): string {
+		$problems = (int) ( $report['missing'] ?? 0 ) + (int) ( $report['outside'] ?? 0 );
+		if ( ! empty( $report['blocked'] ) ) {
+			if ( 0 === (int) ( $report['found'] ?? 0 ) ) {
+				/* translators: %s: folder in the storage. */
+				return sprintf( __( 'Nothing was connected: the storage has no file of the Media Library in %s. Check the folder name and the year and month structure.', 'simple-storage' ), (string) ( $report['folder'] ?? '' ) );
+			}
+
+			/* translators: 1: number of missing files, 2: number of files with another size. */
+			return sprintf( __( 'Nothing was connected: %1$d files are missing and %2$d differ in size. Upload them and check again, or connect anyway.', 'simple-storage' ), $problems, (int) ( $report['mismatch'] ?? 0 ) );
+		}
+		if ( $problems + (int) ( $report['mismatch'] ?? 0 ) > 0 ) {
+			/* translators: 1: number of files, 2: number of missing files, 3: number of files with another size. */
+			return sprintf( __( 'Connected: the site serves %1$d files from the storage; %2$d are missing and %3$d differ in size.', 'simple-storage' ), (int) ( $report['found'] ?? 0 ), $problems, (int) ( $report['mismatch'] ?? 0 ) );
+		}
+
+		/* translators: %d: number of files. */
+		return sprintf( __( 'Connected: the site serves %d files from the storage.', 'simple-storage' ), (int) ( $report['found'] ?? 0 ) );
+	}
+
+	/** @return bool */
+	private function phase_finish_adopt( float $deadline ) {
+		return true;
+	}
+
 	/** Serving from the storage is switched on before any local file disappears. @return bool */
 	private function phase_enable_delivery( float $deadline ) {
 		if ( ! Simple_Storage_Delivery::active() ) {
@@ -861,7 +1010,9 @@ final class Simple_Storage_Jobs {
 	 * @return bool|WP_Error
 	 */
 	private function phase_check_delivery( float $deadline ) {
-		$extensions = Simple_Storage_Index::extensions( array( 'local' => 1, 'remote' => 1, 'verified' => 1 ), 20 );
+		// Adopted files have no local copy to fall back on: every extension must be proven.
+		$adopting   = 'adopt' === $this->job['type'];
+		$extensions = $adopting ? Simple_Storage_Delivery::extensions_to_verify() : Simple_Storage_Index::extensions( array( 'local' => 1, 'remote' => 1, 'verified' => 1 ), 20 );
 		$report     = Simple_Storage_Delivery::verify_delivery( empty( $extensions ) ? array( 'txt' ) : $extensions );
 		if ( is_wp_error( $report ) ) {
 			return $report;
@@ -870,8 +1021,13 @@ final class Simple_Storage_Jobs {
 			return new WP_Error( 'simple_storage_delivery_check', (string) reset( $report['failed'] ) );
 		}
 		foreach ( $report['failed'] as $extension => $message ) {
-			/* translators: 1: file extension, 2: error message. */
-			$this->warn( sprintf( __( 'Files with the extension .%1$s are not served from the storage and stay local: %2$s', 'simple-storage' ), $extension, $message ) );
+			$this->warn(
+				$adopting
+					/* translators: 1: file extension, 2: error message. */
+					? sprintf( __( 'Files with the extension .%1$s are not served from the storage, and the site has no copy of them: %2$s', 'simple-storage' ), $extension, $message )
+					/* translators: 1: file extension, 2: error message. */
+					: sprintf( __( 'Files with the extension .%1$s are not served from the storage and stay local: %2$s', 'simple-storage' ), $extension, $message )
+			);
 		}
 
 		Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
@@ -1128,6 +1284,7 @@ final class Simple_Storage_Jobs {
 			'index' => __( 'Indexing', 'simple-storage' ),
 			'push'  => __( 'Transfer to the storage', 'simple-storage' ),
 			'pull'  => __( 'Return from the storage', 'simple-storage' ),
+			'adopt' => __( 'Connecting files uploaded by hand', 'simple-storage' ),
 		);
 
 		return $labels[ $type ] ?? $type;
@@ -1152,6 +1309,8 @@ final class Simple_Storage_Jobs {
 			'delete_remote'   => __( 'Deleting copies in the storage', 'simple-storage' ),
 			'prune_remote'    => __( 'Removing empty storage folders', 'simple-storage' ),
 			'finish_pull'     => __( 'Finishing', 'simple-storage' ),
+			'adopt_compare'   => __( 'Comparing with the Media Library', 'simple-storage' ),
+			'finish_adopt'    => __( 'Finishing', 'simple-storage' ),
 		);
 
 		return $labels[ $phase ] ?? $phase;
@@ -1159,6 +1318,6 @@ final class Simple_Storage_Jobs {
 
 	/** Phases with per-file progress bars. @return array<int, string> */
 	public static function measured_phases(): array {
-		return array( 'local_scan', 'remote_scan', 'upload', 'verify', 'delete_local', 'download', 'delete_remote' );
+		return array( 'local_scan', 'remote_scan', 'upload', 'verify', 'delete_local', 'download', 'delete_remote', 'adopt_compare' );
 	}
 }

@@ -1427,6 +1427,70 @@ final class Simple_Storage_Media {
 	}
 
 	/**
+	 * Attachments in id order, one for each main file (the language copies of an attachment share
+	 * its files).
+	 *
+	 * @return array<int, int>
+	 */
+	public static function distinct_attachments( int $after_id, int $limit ): array {
+		global $wpdb;
+
+		return array_map(
+			'intval',
+			(array) $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$wpdb->prepare(
+					"SELECT MIN(file.post_id) AS id FROM {$wpdb->postmeta} file
+					INNER JOIN {$wpdb->posts} post ON post.ID = file.post_id AND post.post_type = 'attachment'
+					WHERE file.meta_key = '_wp_attached_file'
+					GROUP BY CAST(file.meta_value AS BINARY)
+					HAVING id > %d ORDER BY id ASC LIMIT %d",
+					$after_id,
+					$limit
+				)
+			)
+		);
+	}
+
+	public static function distinct_attachment_count(): int {
+		global $wpdb;
+
+		return (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT COUNT(DISTINCT CAST(file.meta_value AS BINARY)) FROM {$wpdb->postmeta} file
+			INNER JOIN {$wpdb->posts} post ON post.ID = file.post_id AND post.post_type = 'attachment'
+			WHERE file.meta_key = '_wp_attached_file'"
+		);
+	}
+
+	/**
+	 * The files the database says an attachment has, with the size it recorded for them where it
+	 * did (WordPress keeps one in the metadata since 6.0).
+	 *
+	 * @return array<string, int|null> Uploads-relative path => size in bytes.
+	 */
+	public static function expected_files( int $attachment_id ): array {
+		$expected = array_fill_keys( self::attachment_files( $attachment_id ), null );
+		$file     = (string) get_post_meta( $attachment_id, '_wp_attached_file', true );
+		$meta     = get_post_meta( $attachment_id, '_wp_attachment_metadata', true );
+		if ( ! is_array( $meta ) ) {
+			return $expected;
+		}
+
+		if ( array_key_exists( $file, $expected ) && ! empty( $meta['filesize'] ) ) {
+			$expected[ $file ] = (int) $meta['filesize'];
+		}
+		foreach ( (array) ( $meta['sizes'] ?? array() ) as $size ) {
+			if ( is_array( $size ) && ! empty( $size['file'] ) && ! empty( $size['filesize'] ) ) {
+				$path = dirname( $file ) . '/' . wp_basename( (string) $size['file'] );
+				if ( array_key_exists( $path, $expected ) ) {
+					$expected[ $path ] = (int) $size['filesize'];
+				}
+			}
+		}
+
+		return $expected;
+	}
+
+	/**
 	 * WordPress deletes a media file that still exists locally (an attachment, or old sizes after
 	 * editing): the remote copy goes with it.
 	 *

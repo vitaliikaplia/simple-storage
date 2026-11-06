@@ -210,6 +210,32 @@
 	grid-column: 2;
 }
 
+.simple-storage .ss-adopt table {
+	border-collapse: collapse;
+	margin: 8px 0;
+}
+
+.simple-storage .ss-adopt th,
+.simple-storage .ss-adopt td {
+	border-bottom: 1px solid #f0f0f1;
+	font-weight: 400;
+	padding: 4px 16px 4px 0;
+	text-align: left;
+	vertical-align: top;
+}
+
+.simple-storage .ss-adopt td {
+	white-space: nowrap;
+}
+
+.simple-storage .ss-adopt ul {
+	margin: 4px 0 12px 16px;
+}
+
+.simple-storage .ss-adopt code {
+	word-break: break-all;
+}
+
 .simple-storage .ss-warnings li {
 	background: #fcf9e8;
 	border-left: 4px solid #dba617;

@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.4
+Stable tag: 0.3.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,9 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.3.5 =
+* New: media that do not fit on the hosting can go straight to the storage. Upload the year and month folders to the site folder of the storage yourself (FTP), then press "Connect files uploaded by hand" (or run `wp simple-storage adopt`). The plugin compares the storage with the Media Library, attachment by attachment, and reports what is missing or has another size. With nothing missing it turns on serving and the automatic offload; nothing is copied or downloaded. Files that are really absent can be accepted with "Connect anyway" (`--accept-missing`).
 
 = 0.3.4 =
 Fixes after an audit of the plugin.

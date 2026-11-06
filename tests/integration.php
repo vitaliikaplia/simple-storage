@@ -2100,6 +2100,114 @@ try {
 	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'serving disabled, mode local' );
 	ss_check( ! is_file( $ss_uploads . '/.htaccess' ) && ! is_file( Simple_Storage_Proxy::config_file() ), '.htaccess block and proxy configuration removed' );
 	ss_check( ! glob( $ss_uploads . '/*/*/*' . Simple_Storage_Paths::PART_SUFFIX ), 'no temporary files left' );
+
+	ss_section( 'Files uploaded to the storage by hand' );
+	$ss_add = static function ( string $name, array $sizes ) {
+		$id   = wp_insert_attachment(
+			array(
+				'post_mime_type' => 'image/jpeg',
+				'post_title'     => 'Simple Storage by hand ' . $name,
+				'post_status'    => 'inherit',
+			),
+			$name
+		);
+		$meta = array(
+			'file'     => $name,
+			'width'    => 100,
+			'height'   => 100,
+			'filesize' => 900,
+			'sizes'    => array(),
+		);
+		foreach ( $sizes as $size ) {
+			$meta['sizes'][ $size ] = array(
+				'file'     => $size,
+				'width'    => 10,
+				'height'   => 10,
+				'filesize' => 300,
+			);
+		}
+		update_post_meta( $id, '_wp_attached_file', $name );
+		update_post_meta( $id, '_wp_attachment_metadata', $meta );
+
+		return $id;
+	};
+	$ss_hand = static function ( string $path, int $size ): void {
+		wp_mkdir_p( dirname( ss_remote( $path ) ) );
+		file_put_contents( ss_remote( $path ), str_repeat( 'h', $size ) );
+	};
+	$ss_ids   = array(
+		$ss_add( '2015/06/hand.jpg', array( 'hand-300x200.jpg', 'hand-150x150.jpg' ) ),
+		$ss_add( '2015/06/other.jpg', array() ),
+	);
+	$ss_state = Simple_Storage_Settings::state();
+	ss_check( ! $ss_state['delivery'] && 'local' === $ss_state['mode'], 'set-up: a site that serves nothing from the storage yet' );
+
+	$ss_job = ss_run_job( 'adopt' );
+	ss_check( 'done' === $ss_job['status'] && true === $ss_job['adopt']['blocked'] && 0 === $ss_job['adopt']['found'] && str_contains( (string) $ss_job['message'], Simple_Storage_Paths::remote_root() ), 'an empty storage connects nothing and names the folder', $ss_job['message'] ?? '' );
+	$ss_job = ss_run_job( 'adopt', array( 'accept_missing' => true ) );
+	ss_check( true === $ss_job['adopt']['blocked'] && ! Simple_Storage_Delivery::active(), 'not even when accepted: the folder must be wrong', $ss_job['adopt'] );
+
+	$ss_hand( '2015/06/hand.jpg', 900 );
+	$ss_hand( '2015/06/hand-300x200.jpg', 300 );
+	$ss_hand( '2015/06/other.jpg', 500 );
+	$ss_hand( '2015/06/hand-jpg.webp', 100 );
+	$ss_job    = ss_run_job( 'adopt' );
+	$ss_report = $ss_job['adopt'] ?? array();
+	ss_check( 'done' === $ss_job['status'] && true === $ss_report['blocked'] && 2 === $ss_report['attachments'] && 4 === $ss_report['files'] && 3 === $ss_report['found'], 'the comparison goes by the attachments and all their files', $ss_report );
+	ss_check( 1 === $ss_report['missing'] && array( '2015/06/hand-150x150.jpg' ) === $ss_report['missing_paths'], 'a file that was not uploaded is named', $ss_report );
+	ss_check( 1 === $ss_report['mismatch'] && array( '2015/06/other.jpg' ) === $ss_report['mismatch_paths'], 'so is one of another size than the database recorded', $ss_report );
+	ss_check( 1 === $ss_report['extra'], 'and a file in the storage without an attachment is counted', $ss_report );
+	$ss_state = Simple_Storage_Settings::state();
+	ss_check( ! $ss_state['delivery'] && 'local' === $ss_state['mode'] && ! file_exists( $ss_uploads . '/.htaccess' ), 'with anything missing nothing is switched on' );
+	ss_check( ! file_exists( $ss_uploads . '/2015/06/hand.jpg' ), 'and nothing was downloaded' );
+	ss_check( 2 === ss_failed( $ss_job ) && str_contains( (string) $ss_job['message'], '1' ), 'the job says so', $ss_job['message'] );
+
+	$ss_job = ss_run_job( 'adopt', array( 'accept_missing' => true ) );
+	ss_check( 'done' === $ss_job['status'] && false === $ss_job['adopt']['blocked'] && Simple_Storage_Delivery::active() && 'remote' === Simple_Storage_Settings::state()['mode'], 'connecting anyway switches serving on', $ss_job['message'] ?? '' );
+	$ss_response = wp_remote_get( $ss_baseurl . '/2015/06/hand.jpg' );
+	ss_check( 200 === wp_remote_retrieve_response_code( $ss_response ) && 900 === strlen( wp_remote_retrieve_body( $ss_response ) ), 'the site serves a file uploaded by hand at its address', wp_remote_retrieve_response_code( $ss_response ) );
+	ss_check( Simple_Storage_Media::auto_enabled(), 'new uploads follow into the storage' );
+	ss_check( 'hand-1.jpg' === wp_unique_filename( $ss_uploads . '/2015/06', 'hand.jpg' ), 'and do not take the name of a file uploaded by hand' );
+
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+	$ss_hand( '2015/06/hand-150x150.jpg', 300 );
+	$ss_hand( '2015/06/other.jpg', 900 );
+	$ss_shared = wp_insert_attachment(
+		array(
+			'post_mime_type' => 'image/jpeg',
+			'post_title'     => 'Simple Storage by hand, a language copy',
+			'post_status'    => 'inherit',
+		),
+		'2015/06/other.jpg'
+	);
+	update_post_meta( $ss_shared, '_wp_attached_file', '2015/06/other.jpg' );
+	$ss_local = $ss_add( '2015/06/stayed.jpg', array() );
+	ss_write( $ss_uploads . '/2015/06/stayed.jpg', str_repeat( 's', 900 ) );
+	$ss_flat = $ss_add( 'flat.jpg', array() );
+	ss_write( $ss_uploads . '/flat.jpg', 'not in a dated folder' );
+	$ss_job    = ss_run_job( 'adopt' );
+	$ss_report = $ss_job['adopt'] ?? array();
+	ss_check( false === $ss_report['blocked'] && 0 === $ss_report['missing'] && 0 === $ss_report['mismatch'] && 0 === ss_failed( $ss_job ), 'with everything uploaded it connects on its own', $ss_report );
+	ss_check( 4 === $ss_report['attachments'], 'files shared by language copies count once', $ss_report );
+	ss_check( 1 === $ss_report['on_disk'] && 4 === $ss_report['found'], 'a file that stayed on the disk counts as there', $ss_report );
+	ss_check( Simple_Storage_Delivery::active() && Simple_Storage_Media::auto_enabled(), 'serving and new uploads are on', $ss_job['message'] ?? '' );
+	ss_check( array() === array_diff( array( 'jpg', 'webp' ), Simple_Storage_Delivery::verified_extensions() ), 'serving is proven for every extension in the storage', Simple_Storage_Delivery::verified_extensions() );
+
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+	unlink( $ss_uploads . '/flat.jpg' );
+	ss_write( $ss_uploads . '/2015/06/hand-300x200.jpg', str_repeat( 'f', 300 ) );
+	$ss_job    = ss_run_job( 'adopt' );
+	$ss_report = $ss_job['adopt'] ?? array();
+	ss_check( true === $ss_report['blocked'] && 1 === $ss_report['outside'] && array( 'flat.jpg' ) === $ss_report['outside_paths'] && ! Simple_Storage_Delivery::active(), 'a file outside the dated folders must be on the disk', $ss_report );
+	ss_check( 1 === Simple_Storage_Index::get( '2015/06/hand-300x200.jpg' )['conflict'] && 3 === $ss_report['found'] && 2 === $ss_report['on_disk'], 'a name conflict does not count as a file in the storage', $ss_report );
+	unlink( $ss_uploads . '/2015/06/hand-300x200.jpg' );
+	foreach ( array_merge( $ss_ids, array( $ss_shared, $ss_local, $ss_flat ) ) as $ss_id ) {
+		wp_delete_attachment( $ss_id, true );
+	}
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
 } finally {
 	ss_section( 'Cleanup' );
 	Simple_Storage_Delivery::remove_config();

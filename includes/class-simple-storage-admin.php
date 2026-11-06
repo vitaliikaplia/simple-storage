@@ -249,6 +249,9 @@ final class Simple_Storage_Admin {
 			if ( 'done' === $job['status'] ) {
 				$state = 'done';
 			}
+			if ( in_array( $phase, (array) ( $job['skipped_phases'] ?? array() ), true ) ) {
+				$state = 'pending';
+			}
 
 			$phases[] = array(
 				'key'      => $phase,
@@ -280,6 +283,7 @@ final class Simple_Storage_Admin {
 			'status'      => $job['status'],
 			'statusLabel' => $statuses[ $job['status'] ] ?? $job['status'],
 			'failed'      => $failed,
+			'adopt'       => $job['adopt'] ?? null,
 			'phases'      => $phases,
 			'current'     => (string) $job['current'],
 			'message'     => (string) $job['message'],
@@ -330,7 +334,7 @@ final class Simple_Storage_Admin {
 		switch ( $do ) {
 			case 'start':
 				$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
-				self::respond( Simple_Storage_Jobs::start( $type ) );
+				self::respond( Simple_Storage_Jobs::start( $type, array( 'accept_missing' => ! empty( $_POST['accept'] ) ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 				break;
 			case 'step':
 				self::respond( Simple_Storage_Jobs::step( self::budget() ) );
@@ -450,6 +454,19 @@ final class Simple_Storage_Admin {
 		return array(
 			'confirmPush'      => __( "All media files will be copied to the storage and verified, serving from the storage will be enabled, and then the local copies will be deleted from WordPress.\n\nContinue?", 'simple-storage' ),
 			'confirmPull'      => __( "All files will be downloaded from the storage back into WordPress, verified, and then deleted from the storage.\n\nContinue?", 'simple-storage' ),
+			'confirmAdopt'     => __( "The files in the storage will be compared with the Media Library. Nothing is copied or downloaded. If nothing is missing, the site starts serving them from the storage.\n\nContinue?", 'simple-storage' ),
+			'confirmAccept'    => __( "The site will serve what the storage has. Files that are missing stay broken until they are uploaded.\n\nConnect anyway?", 'simple-storage' ),
+			'adoptAgain'       => __( 'Check again', 'simple-storage' ),
+			'adoptAccept'      => __( 'Connect anyway', 'simple-storage' ),
+			'adoptAttachments' => __( 'Attachments checked:', 'simple-storage' ),
+			'adoptFiles'       => __( 'Files they need:', 'simple-storage' ),
+			'adoptFound'       => __( 'In the storage:', 'simple-storage' ),
+			'adoptOnDisk'      => __( 'On the site disk:', 'simple-storage' ),
+			'adoptMissing'     => __( 'Missing:', 'simple-storage' ),
+			'adoptMismatch'    => __( 'Different size (image optimizers can cause this):', 'simple-storage' ),
+			'adoptOutside'     => __( 'Missing outside the year and month folders (these belong on the site disk):', 'simple-storage' ),
+			'adoptExtra'       => __( 'In the storage without an attachment (theme copies, leftovers):', 'simple-storage' ),
+			'attachments'      => __( 'attachments', 'simple-storage' ),
 			'confirmCancel'    => __( 'Cancel the job? Files that were already processed stay where they are now.', 'simple-storage' ),
 			'confirmDisable'   => __( "Some files exist only in the storage. If serving from the storage is turned off, they will not be shown on the site.\n\nTurn it off anyway?", 'simple-storage' ),
 			'pause'            => __( 'Pause', 'simple-storage' ),
