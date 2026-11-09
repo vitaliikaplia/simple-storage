@@ -310,6 +310,88 @@ final class Simple_Storage_Index {
 	}
 
 	/**
+	 * Name conflicts in id order: a different local file where a file that lives only in the
+	 * storage is recorded — or the same file brought back by hand under a new modification time.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function next_conflicts( int $after_id, int $limit ): array {
+		return self::select( 'conflict = 1 AND id > %d', array( $after_id ), $limit );
+	}
+
+	/**
+	 * Local files that the storage listing of this scan showed with the same size, not yet taken
+	 * for their copies: uploaded by hand, or left by an earlier transfer.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function next_listed( int $scan, int $after_id, int $limit ): array {
+		return self::select( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size = size AND id > %d', array( $scan, $after_id ), $limit );
+	}
+
+	/**
+	 * How many files are in one of the states the step-by-step jobs decide on, their size and the
+	 * first few paths:
+	 * - conflict: a different file at the same path on both sides;
+	 * - listed: local files the storage listing of the scan showed with the same size;
+	 * - listed_any: local files the storage listing of the scan showed, not taken for copies;
+	 * - local_uncopied: local files without a verified copy in the storage;
+	 * - remote_only: files that exist only in the storage.
+	 *
+	 * @return array{count: int, bytes: int, paths: array<int, string>}
+	 */
+	public static function report( string $kind, int $limit = 20, int $scan = 0 ): array {
+		global $wpdb;
+
+		$conditions = array(
+			'conflict'       => array( 'conflict = 1', array() ),
+			'listed'         => array( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size = size', array( $scan ) ),
+			// A copy deleted since the scan has no remote size any more.
+			'listed_any'     => array( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size IS NOT NULL', array( $scan ) ),
+			'local_uncopied' => array( 'local = 1 AND conflict = 0 AND (remote = 0 OR verified = 0)', array() ),
+			'remote_only'    => array( 'remote = 1 AND local = 0 AND conflict = 0', array() ),
+		);
+		if ( ! isset( $conditions[ $kind ] ) ) {
+			return array(
+				'count' => 0,
+				'bytes' => 0,
+				'paths' => array(),
+			);
+		}
+		list( $where, $args ) = $conditions[ $kind ];
+
+		$sql = 'SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes FROM ' . self::table() . ' WHERE ' . $where;
+		$row = $wpdb->get_row( $args ? $wpdb->prepare( $sql, $args ) : $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+
+		$paths = array();
+		if ( $limit > 0 ) {
+			$paths = array_map( static fn( array $item ): string => (string) $item['path'], self::select( $where, $args, $limit ) );
+		}
+
+		return array(
+			'count' => (int) ( $row['files'] ?? 0 ),
+			'bytes' => (int) ( $row['bytes'] ?? 0 ),
+			'paths' => $paths,
+		);
+	}
+
+	/**
+	 * @param array<int, int> $args
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function select( string $where, array $args, int $limit ): array {
+		global $wpdb;
+
+		$args[] = $limit;
+		$rows   = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE ' . $where . ' ORDER BY id ASC LIMIT %d', $args ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			ARRAY_A
+		);
+
+		return array_map( array( self::class, 'cast' ), (array) $rows );
+	}
+
+	/**
 	 * Count and bytes of rows matching a state filter.
 	 *
 	 * @param array<string, int> $state

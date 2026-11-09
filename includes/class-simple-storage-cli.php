@@ -90,8 +90,10 @@ final class Simple_Storage_CLI {
 	}
 
 	/**
-	 * Take over files uploaded to the storage by hand: compare them with the Media Library and,
-	 * when nothing is missing, turn on serving. Nothing is copied.
+	 * Take over files uploaded to the storage by hand (same as switch storage).
+	 *
+	 * Compares them with the Media Library and, when nothing is missing, turns on serving.
+	 * Nothing is copied.
 	 *
 	 * ## OPTIONS
 	 *
@@ -102,6 +104,90 @@ final class Simple_Storage_CLI {
 	 */
 	public function adopt( array $args = array(), array $assoc = array() ): void {
 		$this->run_job( 'adopt', array( 'accept_missing' => ! empty( $assoc['accept-missing'] ) ) );
+	}
+
+	/**
+	 * Copy every file to one side; nothing is deleted.
+	 *
+	 * What is only in WordPress goes to the storage, or what is only in the storage comes into
+	 * WordPress. Every copy is verified; a file already on the other side is verified, not sent again.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <to>
+	 * : Where the files are copied.
+	 * ---
+	 * options:
+	 *   - storage
+	 *   - wordpress
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp simple-storage copy storage
+	 *     wp simple-storage copy wordpress
+	 *
+	 * @when after_wp_load
+	 */
+	public function copy( array $args ): void {
+		$this->run_job( 'storage' === $args[0] ? 'copy_remote' : 'copy_local' );
+	}
+
+	/**
+	 * Switch where the site serves its files from, once every file is there.
+	 *
+	 * Nothing is copied or deleted. "storage" is the same as the adopt command.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <to>
+	 * : Where the site serves its files from.
+	 * ---
+	 * options:
+	 *   - storage
+	 *   - wordpress
+	 * ---
+	 *
+	 * [--accept-missing]
+	 * : Switch although files of the Media Library are missing on both sides. Files that exist only
+	 * on the side being left are never accepted.
+	 *
+	 * @subcommand switch
+	 * @when after_wp_load
+	 */
+	public function switch_serving( array $args, array $assoc = array() ): void {
+		$this->run_job( 'storage' === $args[0] ? 'adopt' : 'switch_local', array( 'accept_missing' => ! empty( $assoc['accept-missing'] ) ) );
+	}
+
+	/**
+	 * Delete the copies on one side, only when every file has a copy on the other.
+	 *
+	 * Otherwise nothing is deleted and the files without a copy are listed.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <in>
+	 * : Where the copies are deleted.
+	 * ---
+	 * options:
+	 *   - wordpress
+	 *   - storage
+	 * ---
+	 *
+	 * [--yes]
+	 * : Do not ask for confirmation.
+	 *
+	 * @subcommand delete-copies
+	 * @when after_wp_load
+	 */
+	public function delete_copies( array $args, array $assoc ): void {
+		if ( 'wordpress' === $args[0] ) {
+			WP_CLI::confirm( 'The local copies will be deleted if every file has a verified copy in the storage. Continue?', $assoc );
+			$this->run_job( 'clean_local' );
+		} else {
+			WP_CLI::confirm( 'The copies in the storage will be deleted if every file is in WordPress too. Continue?', $assoc );
+			$this->run_job( 'clean_remote' );
+		}
 	}
 
 	/**
@@ -211,17 +297,20 @@ final class Simple_Storage_CLI {
 		foreach ( (array) $job['warnings'] as $warning ) {
 			WP_CLI::warning( $warning );
 		}
-		$report = (array) ( $job['adopt'] ?? array() );
-		foreach ( array( 'missing' => 'missing', 'mismatch' => 'different size', 'outside' => 'missing outside the media folders' ) as $kind => $label ) {
-			if ( ! empty( $report[ $kind ] ) ) {
-				WP_CLI::log( sprintf( '%s: %d', $label, $report[ $kind ] ) );
-				foreach ( (array) $report[ $kind . '_paths' ] as $path ) {
+		$report = Simple_Storage_Jobs::report_view( $job );
+		if ( null !== $report ) {
+			foreach ( $report['rows'] as $row ) {
+				WP_CLI::log( $row[0] . ' ' . $row[1] );
+			}
+			foreach ( $report['lists'] as $list ) {
+				WP_CLI::log( $list[0] );
+				foreach ( $list[1] as $path ) {
 					WP_CLI::log( '  ' . $path );
 				}
 			}
-		}
-		if ( ! empty( $report['blocked'] ) ) {
-			WP_CLI::error( (string) $job['message'] );
+			if ( $report['blocked'] ) {
+				WP_CLI::error( (string) $job['message'] . ( $report['canAccept'] ? ' (--accept-missing)' : '' ) );
+			}
 		}
 		if ( 'done' === $job['status'] ) {
 			WP_CLI::success( (string) $job['message'] );

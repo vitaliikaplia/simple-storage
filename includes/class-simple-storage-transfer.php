@@ -250,7 +250,7 @@ final class Simple_Storage_Transfer {
 
 		clearstatcache( true, $local );
 		if ( is_file( $local ) ) {
-			return self::adopt_local( $client, $row, $local, $expected );
+			return self::match_local( $client, $row );
 		}
 
 		if ( ! wp_mkdir_p( dirname( $local ) ) ) {
@@ -332,31 +332,51 @@ final class Simple_Storage_Transfer {
 	}
 
 	/**
-	 * A file is already where the download would put it. It counts as the copy only when its
-	 * contents are proven equal; an equal size proves nothing. Anything else is a name conflict:
-	 * both files stay, and neither is deleted as the "copy" of the other.
+	 * A local file is where a file that lives in the storage is recorded: a download found it in
+	 * place, or it was brought back by hand (FTP) under a new modification time, which the index
+	 * records as a name conflict. It counts as the copy only when its contents are proven equal;
+	 * an equal size proves nothing. Then the row describes both copies again and the conflict is
+	 * gone. Anything else is a name conflict: both files stay, and neither is deleted as the
+	 * "copy" of the other.
 	 *
 	 * @param array<string, mixed> $row
-	 * @return int|WP_Error
+	 * @return int|WP_Error 0 when the local file is the copy.
 	 */
-	private static function adopt_local( Simple_Storage_Client $client, array $row, string $local, int $expected ) {
+	public static function match_local( Simple_Storage_Client $client, array $row ) {
+		$local    = Simple_Storage_Paths::local( (string) $row['path'] );
+		$expected = null !== $row['remote_size'] ? (int) $row['remote_size'] : (int) $row['size'];
+
+		clearstatcache( true, $local );
+		if ( ! is_file( $local ) ) {
+			return new WP_Error( 'simple_storage_local_missing', __( 'The local file is gone.', 'simple-storage' ) );
+		}
+
 		if ( (int) filesize( $local ) === $expected ) {
-			$sha256 = (string) hash_file( 'sha256', $local );
-			$remote = (string) ( $row['sha256'] ?? '' );
+			$sha256  = (string) hash_file( 'sha256', $local );
+			$remote  = (string) ( $row['sha256'] ?? '' );
+			$fetched = false;
 			if ( '' === $remote ) {
 				// Known only from a storage listing: the storage has to show its copy.
-				$fetched = $client->fetch( Simple_Storage_Paths::public_url( (string) $row['path'] ) );
-				if ( is_wp_error( $fetched ) ) {
-					return self::fail( $row, $fetched );
-				}
-				if ( 200 !== $fetched['status'] ) {
+				$response = $client->fetch( Simple_Storage_Paths::public_url( (string) $row['path'] ) );
+				if ( ! is_wp_error( $response ) && 200 !== $response['status'] ) {
 					/* translators: %d: HTTP status code. */
-					return self::fail( $row, new WP_Error( 'simple_storage_public', sprintf( __( 'The public address answered %d.', 'simple-storage' ), $fetched['status'] ) ) );
+					$response = new WP_Error( 'simple_storage_public', sprintf( __( 'The public address answered %d.', 'simple-storage' ), $response['status'] ) );
 				}
-				$remote = $fetched['sha256'];
+				if ( is_wp_error( $response ) ) {
+					// A conflict keeps its own message: the storage was only out of reach this time.
+					return $row['conflict'] ? $response : self::fail( $row, $response );
+				}
+				$remote  = $response['sha256'];
+				$fetched = true;
 			}
 			if ( $remote === $sha256 ) {
 				self::mark_local( $row, $local, $sha256 );
+				$fields = array( 'conflict' => 0 );
+				if ( $fetched ) {
+					// The copy the storage serves was just compared byte for byte.
+					$fields['verified'] = 1;
+				}
+				Simple_Storage_Index::update( (int) $row['id'], $fields );
 
 				return 0;
 			}

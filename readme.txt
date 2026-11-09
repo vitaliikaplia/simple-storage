@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.5
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,6 +17,7 @@ Simple Storage frees the disk of a WordPress hosting by moving the media files t
 * The storage mirrors that structure under a folder of the site, `/{site folder}/YYYY/MM/…`, so several sites can share one storage.
 * Move everything to the storage: copy → verify → enable serving from the storage → check serving end to end → delete local copies. A local file is deleted only after its remote copy has been verified (the size through the API and, in strict mode, the default, the SHA-256 of a download from the public address), after a probe file with the same extension that exists only in the storage was actually served at its uploads address, and after the storage confirmed the copy once more right before the delete. Files of an extension that fails the check stay local.
 * Return everything to WordPress: download into a temporary file → verify → move into place with the original modification time → delete from the storage → disable serving from the storage.
+* Step by step, in either direction, for a move done by hand (FTP) or in stages, and for a site whose files are partly in WordPress and partly in the storage: copy everything to one side (nothing is deleted; files already there are verified, not sent again), switch where the site serves its files from (nothing is copied; the plugin checks first that every file is there), and delete the copies on one side — only when every file has a verified copy on the other side, otherwise nothing is deleted and the job names what is missing. Files brought back by hand under new modification times are matched by their SHA-256.
 * The jobs run in short AJAX steps with live progress and can be paused and continued; a closed tab only pauses them. The same jobs are available through WP-CLI.
 * New uploads go to the storage at the end of the upload request, with their sizes and the WebP/AVIF copies a theme makes; sizes that Timber or a theme cuts on a page view follow at the end of that request. They are copied, verified and removed from the disk right away, in that same request, which no page cache ever serves; with an image optimizer that works in the background (Smush, Imagify, EWWW, ShortPixel, Converter for Media and the like) the local copies go a minute or two later instead, once it is done with them (filter `simple_storage_remove_at_request_end`). An optimizer that only gets to new uploads minutes later from cron (WP-Optimize, LiteSpeed's image optimization) finds them in the storage already; run it before turning the automatic transfer on. This never runs while a job is unfinished. Deleting an attachment deletes its files in the storage too, and a folder that is left empty there (a month, its subfolders, a year) is removed at the end of that request; new uploads never take the name of a file that already lives only in the storage. A different local file that appears at such a name anyway is reported as a conflict and never overwrites the remote original.
 * Image editing keeps working for files that live only in the storage: crop, rotate, flip, scale and "Restore original image" in the classic editor, the Customizer crop and the crop of the Image block bring the original back first, and the edited files then follow into the storage.
@@ -39,7 +40,7 @@ In both modes a file is served from the storage only when it is missing locally,
 
 The login, password and storage address can also be defined as the `SIMPLE_STORAGE_LOGIN`, `SIMPLE_STORAGE_PASSWORD` and `SIMPLE_STORAGE_HOST` constants in `wp-config.php`; a password saved in the settings is stored encrypted with the WordPress salts.
 
-WP-CLI: `wp simple-storage status`, `test`, `index`, `push`, `pull`, `resume`, `cancel`, `delivery on|off`.
+WP-CLI: `wp simple-storage status`, `test`, `index`, `push`, `pull`, `adopt`, `copy storage|wordpress`, `switch storage|wordpress`, `delete-copies wordpress|storage`, `resume`, `cancel`, `delivery on|off`.
 
 For themes and plugins that work with media files themselves: `simple_storage_ensure_local( $attachment_id_or_path_or_url )` brings a file back from the storage, `simple_storage_file_exists( $path_or_url )` replaces `file_exists()` and knows files in the storage, `simple_storage_queue_offload( $path )` sends a file the code has just written to the storage at the end of the request, `simple_storage_timber_resize()` is `Timber\ImageHelper::resize()` for direct PHP calls, and the `simple_storage_attachment_files` filter adds files a theme keeps for an attachment outside its metadata.
 
@@ -62,6 +63,14 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.4.0 =
+* New: a "Step by step" card for moves done by hand or in stages, with three steps in each direction.
+* To the storage: "Copy everything to the storage" uploads what is only in WordPress and verifies every copy; a file already uploaded by hand is verified instead of sent again. "Switch to the storage" is the former "Connect files uploaded by hand". "Delete the copies in WordPress" frees the hosting disk, but only when every local file has a verified copy in the storage; it turns on serving from the storage and checks it first.
+* To WordPress: "Copy everything to WordPress" downloads what is only in the storage; new uploads stay in WordPress from then on. "Switch to WordPress" is for files brought back by hand: it checks that every file in the storage and every file of the Media Library is in WordPress, then turns serving from the storage off. "Delete the copies in the storage" frees the storage, but only when every file there is in WordPress too, with the same contents.
+* Copying never deletes anything, switching never copies, and deleting never starts while a file would be left without a copy: the job stops, deletes nothing and lists the files.
+* Files brought back by hand under new modification times (and files uploaded by hand to the storage) are matched by SHA-256 instead of being reported as name conflicts; a different file at the same path still is one.
+* WP-CLI: `copy storage|wordpress`, `switch storage|wordpress [--accept-missing]`, `delete-copies wordpress|storage [--yes]`.
 
 = 0.3.5 =
 * New: media that do not fit on the hosting can go straight to the storage. Upload the year and month folders to the site folder of the storage yourself (FTP), then press "Connect files uploaded by hand" (or run `wp simple-storage adopt`). The plugin compares the storage with the Media Library, attachment by attachment, and reports what is missing or has another size. With nothing missing it turns on serving and the automatic offload; nothing is copied or downloaded. Files that are really absent can be accepted with "Connect anyway" (`--accept-missing`).

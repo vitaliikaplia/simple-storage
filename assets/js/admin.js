@@ -201,7 +201,7 @@
 
 		$( 'job-phases' ).replaceChildren(
 			...job.phases.map( ( phase ) => {
-				const adopting = 'adopt_compare' === phase.key;
+				const adopting = 'adopt_compare' === phase.key || 'local_compare' === phase.key;
 				let unit = adopting ? t.attachments : t.files;
 				if ( 'local_scan' === phase.key || 'remote_scan' === phase.key ) {
 					unit = t.folders;
@@ -240,7 +240,7 @@
 			message.appendChild( el( 'p', { className: 'description', text: t.keepOpen } ) );
 		}
 
-		renderAdopt( job );
+		renderReport( job );
 
 		$( 'job-warnings' ).replaceChildren( ...job.warnings.map( ( warning ) => el( 'li', { text: warning } ) ) );
 
@@ -255,10 +255,10 @@
 			buttons.push( el( 'button', { type: 'button', className: 'button button-link-delete', 'data-ss-job': 'cancel', text: t.cancel } ) );
 		}
 		if ( 'done' === job.status ) {
-			if ( job.adopt && job.adopt.blocked ) {
-				buttons.push( el( 'button', { type: 'button', className: 'button button-primary', 'data-ss-adopt': 'again', text: t.adoptAgain } ) );
-				if ( job.adopt.found > 0 ) {
-					buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-adopt': 'accept', text: t.adoptAccept } ) );
+			if ( job.report && job.report.blocked ) {
+				buttons.push( el( 'button', { type: 'button', className: 'button button-primary', 'data-ss-again': '', text: t.checkAgain } ) );
+				if ( job.report.canAccept ) {
+					buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-accept': '', text: job.report.acceptLabel } ) );
 				}
 			}
 			buttons.push( el( 'button', { type: 'button', className: 'button', 'data-ss-job': 'dismiss', text: t.close } ) );
@@ -266,39 +266,23 @@
 		$( 'job-buttons' ).replaceChildren( ...buttons );
 	}
 
-	function renderAdopt( job ) {
-		const box = $( 'job-adopt' );
+	/** What a job that compares or checks before it changes anything found, with the paths. */
+	function renderReport( job ) {
+		const box = $( 'job-report' );
 		if ( ! box ) {
 			return;
 		}
-		const report = job.adopt;
+		const report = job.report;
 		if ( ! report ) {
 			box.replaceChildren();
 			return;
 		}
 
-		const rows = [
-			[ t.adoptAttachments, report.attachments ],
-			[ t.adoptFiles, report.files ],
-			[ t.adoptFound, report.found ],
-			[ t.adoptOnDisk, report.on_disk ],
-			[ t.adoptMissing, report.missing ],
-			[ t.adoptMismatch, report.mismatch ],
-			[ t.adoptOutside, report.outside ],
-			[ t.adoptExtra, report.extra ],
-		].filter( ( row, index ) => index < 3 || row[ 1 ] > 0 );
-
-		const lists = [
-			[ t.adoptMissing, report.missing_paths ],
-			[ t.adoptMismatch, report.mismatch_paths ],
-			[ t.adoptOutside, report.outside_paths ],
-		].filter( ( list ) => list[ 1 ].length );
-
 		box.replaceChildren(
 			el( 'table', {}, [
-				el( 'tbody', {}, rows.map( ( row ) => el( 'tr', {}, [ el( 'th', { scope: 'row', text: row[ 0 ] } ), el( 'td', { text: String( row[ 1 ] ) } ) ] ) ) ),
+				el( 'tbody', {}, report.rows.map( ( row ) => el( 'tr', {}, [ el( 'th', { scope: 'row', text: row[ 0 ] } ), el( 'td', { text: String( row[ 1 ] ) } ) ] ) ) ),
 			] ),
-			...lists.flatMap( ( list ) => [
+			...report.lists.flatMap( ( list ) => [
 				el( 'p', { text: list[ 0 ] } ),
 				el( 'ul', {}, list[ 1 ].map( ( path ) => el( 'li', {}, [ el( 'code', { text: path } ) ] ) ) ),
 			] )
@@ -413,14 +397,23 @@
 		render();
 	}
 
+	const confirmations = {
+		push: t.confirmPush,
+		pull: t.confirmPull,
+		adopt: t.confirmAdopt,
+		copy_remote: t.confirmCopyRemote,
+		copy_local: t.confirmCopyLocal,
+		switch_local: t.confirmSwitchLocal,
+		clean_local: t.confirmCleanLocal,
+		clean_remote: t.confirmCleanRemote,
+	};
+
 	async function start( type, accept ) {
-		if ( 'push' === type && ! window.confirm( t.confirmPush ) ) { // eslint-disable-line no-alert
-			return;
+		let question = confirmations[ type ] || '';
+		if ( accept && state.job && state.job.report ) {
+			question = state.job.report.acceptConfirm;
 		}
-		if ( 'pull' === type && ! window.confirm( t.confirmPull ) ) { // eslint-disable-line no-alert
-			return;
-		}
-		if ( 'adopt' === type && ! window.confirm( accept ? t.confirmAccept : t.confirmAdopt ) ) { // eslint-disable-line no-alert
+		if ( question && ! window.confirm( question ) ) { // eslint-disable-line no-alert
 			return;
 		}
 		try {
@@ -510,8 +503,9 @@
 			start( target.getAttribute( 'data-ss-start' ) );
 		} else if ( target.hasAttribute( 'data-ss-job' ) ) {
 			jobAction( target.getAttribute( 'data-ss-job' ) );
-		} else if ( target.hasAttribute( 'data-ss-adopt' ) ) {
-			start( 'adopt', 'accept' === target.getAttribute( 'data-ss-adopt' ) );
+		} else if ( ( target.hasAttribute( 'data-ss-again' ) || target.hasAttribute( 'data-ss-accept' ) ) && state.job ) {
+			// The same job once more: after the missing files were uploaded, or accepting them.
+			start( state.job.type, target.hasAttribute( 'data-ss-accept' ) );
 		} else if ( 'delivery-toggle' === target.getAttribute( 'data-ss' ) ) {
 			toggleDelivery( target );
 		} else if ( 'test' === target.getAttribute( 'data-ss' ) ) {

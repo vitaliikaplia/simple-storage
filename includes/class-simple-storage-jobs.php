@@ -26,11 +26,20 @@ final class Simple_Storage_Jobs {
 	private const REMOTE_PHASES = array( 'remote_dirs', 'remote_scan', 'remote_cleanup' );
 
 	private const PHASES = array(
-		'index' => array( 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup' ),
-		'push'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'upload', 'verify', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_push' ),
-		'pull'  => array( 'check', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'download', 'delete_remote', 'prune_remote', 'finish_pull' ),
-		'adopt' => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
+		'index'        => array( 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup' ),
+		'push'         => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'upload', 'verify', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_push' ),
+		'pull'         => array( 'check', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'download', 'delete_remote', 'prune_remote', 'finish_pull' ),
+		'adopt'        => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
+		// Step by step: copy (never deletes), switch (never copies), delete (only a complete move).
+		'copy_remote'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'upload', 'verify', 'finish_copy_remote' ),
+		'copy_local'   => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'download', 'finish_copy_local' ),
+		'switch_local' => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'local_compare', 'disable_delivery', 'finish_switch_local' ),
+		'clean_local'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'verify', 'local_gate', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_clean_local' ),
+		'clean_remote' => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'remote_gate', 'delete_remote', 'prune_remote', 'finish_clean_remote' ),
 	);
+
+	/** Paths of each kind kept for the report of a step-by-step job. */
+	private const REPORT_SAMPLES = 20;
 
 	/** Paths of each kind kept for the report of an adopt job. */
 	private const ADOPT_SAMPLES = 20;
@@ -111,9 +120,10 @@ final class Simple_Storage_Jobs {
 			'finished_at' => 0,
 		);
 
-		if ( 'pull' === $type ) {
-			// New uploads must stay local from now on, or they would race the download. A cancelled
-			// pull gives the old mode back.
+		if ( in_array( $type, array( 'pull', 'copy_local' ), true ) ) {
+			// New uploads must stay local from now on, or they would race the download, and the
+			// automatic offload would move what was downloaded out again. A cancelled job gives
+			// the old mode back.
 			$job['previous_mode'] = Simple_Storage_Settings::state()['mode'];
 			Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
 		}
@@ -157,7 +167,7 @@ final class Simple_Storage_Jobs {
 			$job['status']      = 'cancelled';
 			$job['finished_at'] = time();
 			update_option( self::OPTION, $job, false );
-			if ( 'pull' === $job['type'] && 'remote' === ( $job['previous_mode'] ?? '' ) && Simple_Storage_Delivery::active() ) {
+			if ( 'remote' === ( $job['previous_mode'] ?? '' ) && Simple_Storage_Delivery::active() ) {
 				// The site still serves from the storage, so new uploads follow the files there.
 				Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
 			}
@@ -275,7 +285,22 @@ final class Simple_Storage_Jobs {
 				$totals = Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1 ) );
 				break;
 			case 'adopt_compare':
+			case 'local_compare':
 				$totals['files'] = Simple_Storage_Media::distinct_attachment_count();
+				break;
+			case 'reconcile':
+				$report = Simple_Storage_Index::report( 'conflict', 0 );
+				$totals = array(
+					'files' => $report['count'],
+					'bytes' => $report['bytes'],
+				);
+				break;
+			case 'verify_listed':
+				$report = Simple_Storage_Index::report( 'listed', 0, (int) $this->job['remote_scan'] );
+				$totals = array(
+					'files' => $report['count'],
+					'bytes' => $report['bytes'],
+				);
 				break;
 		}
 
@@ -291,8 +316,8 @@ final class Simple_Storage_Jobs {
 
 	private function complete_phase( string $phase ): void {
 		$progress = $this->job['progress'][ $phase ] ?? array();
-		// The comparison of an adopt job has a report of its own, not rows with errors.
-		if ( ! empty( $progress['failed'] ) && 'adopt_compare' !== $phase ) {
+		// Comparisons and checks have a report of their own, not rows with errors.
+		if ( ! empty( $progress['failed'] ) && ! in_array( $phase, array( 'adopt_compare', 'local_compare', 'local_gate', 'remote_gate' ), true ) ) {
 			Simple_Storage_Log::warning(
 				/* translators: 1: phase name, 2: number of files. */
 				sprintf( __( '%1$s: %2$d files failed; see the error list.', 'simple-storage' ), self::phase_label( $phase ), (int) $progress['failed'] )
@@ -317,6 +342,9 @@ final class Simple_Storage_Jobs {
 		$message = self::type_label( (string) $this->job['type'] ) . ': ' . __( 'finished.', 'simple-storage' );
 		if ( 'adopt' === $this->job['type'] ) {
 			$message = self::adopt_message( (array) ( $this->job['adopt'] ?? array() ) );
+		} elseif ( isset( $this->job['summary'] ) ) {
+			// A step-by-step job says itself what happened, and what did not.
+			$message = (string) $this->job['summary'];
 		} elseif ( $failed > 0 ) {
 			/* translators: %d: number of files. */
 			$message .= ' ' . sprintf( _n( '%d file failed.', '%d files failed.', $failed, 'simple-storage' ), $failed );
@@ -398,8 +426,18 @@ final class Simple_Storage_Jobs {
 
 	/** Process index rows of one state in id order until the phase is done or time is up. */
 	private function each_row( string $phase, array $state, float $deadline, callable $operation ) {
+		return $this->each( $phase, static fn( int $after ): array => Simple_Storage_Index::next( $state, $after, self::BATCH ), $deadline, $operation );
+	}
+
+	/**
+	 * Process the rows a query returns after the cursor, in id order, until the phase is done or
+	 * time is up.
+	 *
+	 * @param callable(int): array<int, array<string, mixed>> $fetch
+	 */
+	private function each( string $phase, callable $fetch, float $deadline, callable $operation ) {
 		while ( microtime( true ) < $deadline ) {
-			$rows = Simple_Storage_Index::next( $state, (int) $this->job['cursor'], self::BATCH );
+			$rows = $fetch( (int) $this->job['cursor'] );
 			if ( empty( $rows ) ) {
 				return true;
 			}
@@ -430,8 +468,8 @@ final class Simple_Storage_Jobs {
 
 	/** @return bool|WP_Error */
 	private function phase_check( float $deadline ) {
-		// Both depend on the public address as well: test it before anything is decided.
-		if ( in_array( $this->job['type'], array( 'push', 'adopt' ), true ) ) {
+		// These depend on the public address as well: test it before anything is decided.
+		if ( in_array( $this->job['type'], array( 'push', 'adopt', 'copy_remote', 'clean_local' ), true ) ) {
 			$report = Simple_Storage_Tester::run();
 			if ( ! $report['ok'] ) {
 				$last = end( $report['steps'] );
@@ -952,9 +990,20 @@ final class Simple_Storage_Jobs {
 
 		$this->job['progress']['adopt_compare']['failed'] = $problems;
 		if ( $report['blocked'] ) {
-			$this->job['skipped_phases'] = array( 'enable_delivery', 'check_delivery' );
-			$this->job['phase']          = (int) array_search( 'check_delivery', $this->job['phases'], true );
+			$this->stop_before_finish();
 		}
+	}
+
+	/**
+	 * A check that did not pass ends the job right here: every phase between the current one and
+	 * the last is skipped, so nothing is switched, copied or deleted.
+	 */
+	private function stop_before_finish(): void {
+		$last = count( $this->job['phases'] ) - 1;
+
+		$this->job['skipped_phases'] = array_slice( $this->job['phases'], $this->job['phase'] + 1, max( 0, $last - $this->job['phase'] - 1 ) );
+		// The current phase completes next and moves the job on to the last one.
+		$this->job['phase'] = $last - 1;
 	}
 
 	/** @param array<string, mixed> $report */
@@ -981,6 +1030,361 @@ final class Simple_Storage_Jobs {
 	/** @return bool */
 	private function phase_finish_adopt( float $deadline ) {
 		return true;
+	}
+
+	/**
+	 * Files at the same path on both sides that the index cannot take for copies of each other:
+	 * brought back by hand (FTP) under new modification times, or a different file in the way.
+	 * The same contents (SHA-256) make the local file the copy; a different one stays a name
+	 * conflict, and neither of the two is ever deleted as the copy of the other.
+	 *
+	 * @return bool|WP_Error
+	 */
+	private function phase_reconcile( float $deadline ) {
+		$client = $this->client();
+		if ( is_wp_error( $client ) ) {
+			return $client;
+		}
+
+		return $this->each(
+			'reconcile',
+			static fn( int $after ): array => Simple_Storage_Index::next_conflicts( $after, self::BATCH ),
+			$deadline,
+			static function ( array $row ) use ( $client ) {
+				$matched = Simple_Storage_Transfer::match_local( $client, $row );
+
+				return is_wp_error( $matched ) ? $matched : (int) $row['size'];
+			}
+		);
+	}
+
+	/**
+	 * Local files that the storage already has under the same name and size (uploaded by hand, or
+	 * left there by an earlier transfer) are checked like any copy, instead of being uploaded once
+	 * more or left behind in the storage unnoticed. Only a passed check makes them copies.
+	 *
+	 * @return bool|WP_Error
+	 */
+	private function phase_verify_listed( float $deadline ) {
+		$client = $this->client();
+		if ( is_wp_error( $client ) ) {
+			return $client;
+		}
+		$scan = (int) $this->job['remote_scan'];
+
+		return $this->each(
+			'verify_listed',
+			static fn( int $after ): array => Simple_Storage_Index::next_listed( $scan, $after, self::BATCH ),
+			$deadline,
+			static function ( array $row ) use ( $client ) {
+				Simple_Storage_Index::update(
+					(int) $row['id'],
+					array(
+						'remote'   => 1,
+						'verified' => 0,
+					)
+				);
+				$row['remote']   = 1;
+				$row['verified'] = 0;
+
+				$verified = Simple_Storage_Transfer::verify( $client, $row );
+				if ( true === $verified ) {
+					return (int) $row['size'];
+				}
+
+				// Not proven (another file under that name, or the storage out of reach this time):
+				// no copy yet, and no failure either — the listing was only a hint. Copying uploads
+				// such a file like any other; deleting leaves it where it is.
+				$current = Simple_Storage_Index::get( (string) $row['path'] );
+				if ( null !== $current && $current['local'] ) {
+					Simple_Storage_Index::update(
+						(int) $row['id'],
+						array(
+							'remote'   => 0,
+							'verified' => 0,
+							'error'    => null,
+						)
+					);
+				}
+
+				return 0;
+			}
+		);
+	}
+
+	/**
+	 * Switching to WordPress: every file the Media Library needs must be on the site disk. Files
+	 * that exist only in the storage, or differ from the file at the same path, would break, so
+	 * they always stop the switch; files missing on both sides can be accepted.
+	 *
+	 * @return bool
+	 */
+	private function phase_local_compare( float $deadline ) {
+		if ( ! isset( $this->job['report'] ) ) {
+			$this->job['report'] = self::new_report( array( 'attachments', 'files', 'on_disk', 'only_remote', 'conflicts', 'missing', 'outside' ) );
+		}
+
+		while ( microtime( true ) < $deadline ) {
+			$ids = Simple_Storage_Media::distinct_attachments( (int) $this->job['cursor'], self::BATCH );
+			if ( empty( $ids ) ) {
+				$this->conclude_switch_local();
+
+				return true;
+			}
+
+			foreach ( $ids as $id ) {
+				$this->job['cursor'] = $id;
+				$this->check_on_disk( $id );
+				wp_cache_delete( $id, 'post_meta' );
+				++$this->job['progress']['local_compare']['done'];
+				self::heartbeat();
+			}
+		}
+
+		return false;
+	}
+
+	private function check_on_disk( int $id ): void {
+		$attached = (string) get_post_meta( $id, '_wp_attached_file', true );
+
+		$this->job['current'] = $attached;
+		++$this->job['report']['counts']['attachments'];
+
+		if ( ! Simple_Storage_Paths::is_media_path( $attached ) ) {
+			// Outside the year and month folders nothing moves: such a file has to be on the disk.
+			if ( ! file_exists( Simple_Storage_Paths::local( $attached ) ) ) {
+				$this->note( 'outside', $attached );
+			}
+
+			return;
+		}
+
+		$expected = Simple_Storage_Media::expected_files( $id );
+		$rows     = Simple_Storage_Index::by_paths( array_keys( $expected ) );
+		foreach ( array_keys( $expected ) as $path ) {
+			$path = (string) $path;
+			++$this->job['report']['counts']['files'];
+
+			if ( file_exists( Simple_Storage_Paths::local( $path ) ) ) {
+				++$this->job['report']['counts']['on_disk'];
+			} elseif ( empty( $rows[ $path ]['remote'] ) ) {
+				// In the storage it is counted with the rest of the files that live only there.
+				$this->note( 'missing', $path );
+			}
+		}
+	}
+
+	private function conclude_switch_local(): void {
+		$report = &$this->job['report'];
+
+		$this->take( 'only_remote', Simple_Storage_Index::report( 'remote_only', self::REPORT_SAMPLES ) );
+		$this->take( 'conflicts', Simple_Storage_Index::report( 'conflict', self::REPORT_SAMPLES ) );
+
+		$breaking = (int) $report['counts']['only_remote'] + (int) $report['counts']['conflicts'];
+		$missing  = (int) $report['counts']['missing'] + (int) $report['counts']['outside'];
+
+		$report['can_accept'] = 0 === $breaking && $missing > 0;
+		$report['blocked']    = $breaking > 0 || ( $missing > 0 && empty( $this->job['accept_missing'] ) );
+
+		$this->job['progress']['local_compare']['failed'] = $breaking + $missing;
+		if ( $report['blocked'] ) {
+			$this->stop_before_finish();
+		}
+	}
+
+	/** Every file is in WordPress: serving from the storage goes off, new uploads stay. @return bool */
+	private function phase_disable_delivery( float $deadline ) {
+		if ( Simple_Storage_Delivery::active() ) {
+			Simple_Storage_Delivery::disable();
+		}
+		Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+
+		return true;
+	}
+
+	/**
+	 * Local copies are deleted only once the move is complete: every local file has a verified
+	 * copy in the storage. Otherwise nothing is deleted, and the report names what is missing.
+	 *
+	 * @return bool
+	 */
+	private function phase_local_gate( float $deadline ) {
+		$this->job['report'] = self::new_report( array( 'local_total', 'with_copy', 'uncopied', 'conflicts' ) );
+		$this->take( 'uncopied', Simple_Storage_Index::report( 'local_uncopied', self::REPORT_SAMPLES ) );
+		$this->take( 'conflicts', Simple_Storage_Index::report( 'conflict', self::REPORT_SAMPLES ) );
+
+		$counts                = &$this->job['report']['counts'];
+		$counts['local_total'] = Simple_Storage_Index::totals( array( 'local' => 1 ) )['files'] + $counts['conflicts'];
+		$counts['with_copy']   = Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1, 'verified' => 1 ) )['files'];
+
+		$missing                                       = $counts['uncopied'] + $counts['conflicts'];
+		$this->job['report']['blocked']                = $missing > 0;
+		$this->job['progress']['local_gate']['failed'] = $missing;
+		if ( $missing > 0 ) {
+			$this->stop_before_finish();
+		}
+
+		return true;
+	}
+
+	/**
+	 * Copies in the storage are deleted only once the move is complete: every file in the storage
+	 * is in WordPress too, with the same contents. Otherwise nothing is deleted.
+	 *
+	 * @return bool
+	 */
+	private function phase_remote_gate( float $deadline ) {
+		$this->job['report'] = self::new_report( array( 'remote_total', 'with_local', 'only_remote', 'conflicts' ) );
+		$this->take( 'only_remote', Simple_Storage_Index::report( 'remote_only', self::REPORT_SAMPLES ) );
+		$this->take( 'conflicts', Simple_Storage_Index::report( 'conflict', self::REPORT_SAMPLES ) );
+
+		$counts                 = &$this->job['report']['counts'];
+		$counts['with_local']   = Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1 ) )['files'];
+		$counts['remote_total'] = $counts['with_local'] + $counts['only_remote'] + $counts['conflicts'];
+
+		$missing                                        = $counts['only_remote'] + $counts['conflicts'];
+		$this->job['report']['blocked']                 = $missing > 0;
+		$this->job['progress']['remote_gate']['failed'] = $missing;
+		if ( $missing > 0 ) {
+			$this->stop_before_finish();
+
+			return true;
+		}
+
+		// From here on new uploads stay in WordPress; a cancelled job gives the old mode back.
+		$this->job['previous_mode'] = Simple_Storage_Settings::state()['mode'];
+		Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+
+		return true;
+	}
+
+	/** @return bool */
+	private function phase_finish_copy_remote( float $deadline ) {
+		$left      = Simple_Storage_Index::report( 'local_uncopied', 0 )['count'];
+		$conflicts = Simple_Storage_Index::report( 'conflict', 0 )['count'];
+
+		$this->job['summary'] = 0 === $left + $conflicts
+			? __( 'Copied: every file in WordPress has a verified copy in the storage. Nothing was deleted, and the site serves its files as before.', 'simple-storage' )
+			/* translators: %d: number of files. */
+			: sprintf( __( 'Copied, but %d files in WordPress still have no verified copy in the storage, or differ from the file at the same path there. Nothing was deleted. Check the errors and copy again.', 'simple-storage' ), $left + $conflicts );
+
+		return true;
+	}
+
+	/** @return bool */
+	private function phase_finish_copy_local( float $deadline ) {
+		$left = Simple_Storage_Index::remote_only_count();
+
+		$this->job['summary'] = 0 === $left
+			? __( 'Copied: every file in the storage is in WordPress too. Nothing was deleted, and new uploads stay in WordPress from now on.', 'simple-storage' )
+			/* translators: %d: number of files. */
+			: sprintf( __( 'Copied, but %d files are still only in the storage, name conflicts included. Nothing was deleted. Check the errors and copy again.', 'simple-storage' ), $left );
+
+		return true;
+	}
+
+	/** @return bool */
+	private function phase_finish_switch_local( float $deadline ) {
+		$counts   = (array) ( $this->job['report']['counts'] ?? array() );
+		$breaking = (int) ( $counts['only_remote'] ?? 0 ) + (int) ( $counts['conflicts'] ?? 0 );
+		$missing  = (int) ( $counts['missing'] ?? 0 ) + (int) ( $counts['outside'] ?? 0 );
+
+		if ( ! empty( $this->job['report']['blocked'] ) ) {
+			$this->job['summary'] = $breaking > 0
+				? __( 'Nothing was switched: some files are only in the storage, or differ from the file at the same path in WordPress; the report lists them. Bring them back (or copy everything to WordPress) and check again.', 'simple-storage' )
+				/* translators: %d: number of files. */
+				: sprintf( __( 'Nothing was switched: %d files the Media Library needs are missing both in WordPress and in the storage. Upload them and check again, or switch anyway.', 'simple-storage' ), $missing );
+		} else {
+			$this->job['summary'] = $missing > 0
+				/* translators: %d: number of files. */
+				? sprintf( __( 'Switched: the site serves its files from WordPress, and serving from the storage is off; %d files the Media Library needs are missing. The copies in the storage were kept.', 'simple-storage' ), $missing )
+				: __( 'Switched: the site serves its files from WordPress, and serving from the storage is off. The copies in the storage were kept.', 'simple-storage' );
+		}
+
+		return true;
+	}
+
+	/** @return bool */
+	private function phase_finish_clean_local( float $deadline ) {
+		if ( ! empty( $this->job['report']['blocked'] ) ) {
+			$this->job['summary'] = __( 'Nothing was deleted: not every file in WordPress has a verified copy in the storage; the report lists the ones that do not. Copy everything to the storage first.', 'simple-storage' );
+
+			return true;
+		}
+
+		$left = Simple_Storage_Index::totals( array( 'local' => 1 ) )['files'];
+
+		$this->job['summary'] = 0 === $left
+			? __( 'Deleted: the site serves every file from the storage, and no copy is left in WordPress.', 'simple-storage' )
+			/* translators: %d: number of files. */
+			: sprintf( __( 'Deleted, but %d files stay in WordPress: serving their extension from the storage did not work, or the deletion failed. See the warnings and errors.', 'simple-storage' ), $left );
+
+		return true;
+	}
+
+	/** @return bool */
+	private function phase_finish_clean_remote( float $deadline ) {
+		if ( ! empty( $this->job['report']['blocked'] ) ) {
+			$this->job['summary'] = __( 'Nothing was deleted: not every file in the storage is in WordPress with the same contents; the report lists the ones that are not. Copy everything to WordPress first.', 'simple-storage' );
+
+			return true;
+		}
+
+		$kept = Simple_Storage_Index::report( 'listed_any', 5, (int) $this->job['remote_scan'] );
+		if ( $kept['count'] > 0 ) {
+			$this->warn(
+				/* translators: 1: number of files, 2: list of paths. */
+				sprintf( __( '%1$d files in the storage differ from the files at the same paths in WordPress, so they were kept. Remove them in the storage panel if nobody needs them: %2$s', 'simple-storage' ), $kept['count'], implode( ', ', $kept['paths'] ) )
+			);
+		}
+
+		$left = Simple_Storage_Index::totals( array( 'remote' => 1 ) )['files'];
+		if ( 0 === Simple_Storage_Index::remote_only_count() ) {
+			if ( Simple_Storage_Delivery::active() ) {
+				Simple_Storage_Delivery::disable();
+			}
+			$this->warn( __( 'All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear.', 'simple-storage' ) );
+		}
+
+		$this->job['summary'] = 0 === $left
+			? __( 'Deleted: the site serves every file from WordPress, and no copy is left in the storage.', 'simple-storage' )
+			/* translators: %d: number of files. */
+			: sprintf( __( 'Deleted, but %d copies in the storage could not be deleted. See the errors and run the job again.', 'simple-storage' ), $left );
+
+		return true;
+	}
+
+	/**
+	 * @param array<int, string> $keys Counts of the report, in the order they are shown.
+	 * @return array<string, mixed>
+	 */
+	private static function new_report( array $keys ): array {
+		return array(
+			'counts'     => array_fill_keys( $keys, 0 ),
+			'paths'      => array(),
+			'blocked'    => false,
+			'can_accept' => false,
+		);
+	}
+
+	/** One more file of a kind in the report of a step-by-step job. */
+	private function note( string $kind, string $path ): void {
+		++$this->job['report']['counts'][ $kind ];
+		if ( count( $this->job['report']['paths'][ $kind ] ?? array() ) < self::REPORT_SAMPLES ) {
+			$this->job['report']['paths'][ $kind ][] = $path;
+		}
+	}
+
+	/**
+	 * A kind of files the index counts, into the report of a step-by-step job.
+	 *
+	 * @param array{count: int, bytes: int, paths: array<int, string>} $found
+	 */
+	private function take( string $kind, array $found ): void {
+		$this->job['report']['counts'][ $kind ] = $found['count'];
+		if ( ! empty( $found['paths'] ) ) {
+			$this->job['report']['paths'][ $kind ] = $found['paths'];
+		}
 	}
 
 	/** Serving from the storage is switched on before any local file disappears. @return bool */
@@ -1281,10 +1685,15 @@ final class Simple_Storage_Jobs {
 
 	public static function type_label( string $type ): string {
 		$labels = array(
-			'index' => __( 'Indexing', 'simple-storage' ),
-			'push'  => __( 'Transfer to the storage', 'simple-storage' ),
-			'pull'  => __( 'Return from the storage', 'simple-storage' ),
-			'adopt' => __( 'Connecting files uploaded by hand', 'simple-storage' ),
+			'index'        => __( 'Indexing', 'simple-storage' ),
+			'push'         => __( 'Transfer to the storage', 'simple-storage' ),
+			'pull'         => __( 'Return from the storage', 'simple-storage' ),
+			'adopt'        => __( 'Switching to the storage', 'simple-storage' ),
+			'copy_remote'  => __( 'Copying everything to the storage', 'simple-storage' ),
+			'copy_local'   => __( 'Copying everything to WordPress', 'simple-storage' ),
+			'switch_local' => __( 'Switching to WordPress', 'simple-storage' ),
+			'clean_local'  => __( 'Deleting the copies in WordPress', 'simple-storage' ),
+			'clean_remote' => __( 'Deleting the copies in the storage', 'simple-storage' ),
 		);
 
 		return $labels[ $type ] ?? $type;
@@ -1311,13 +1720,99 @@ final class Simple_Storage_Jobs {
 			'finish_pull'     => __( 'Finishing', 'simple-storage' ),
 			'adopt_compare'   => __( 'Comparing with the Media Library', 'simple-storage' ),
 			'finish_adopt'    => __( 'Finishing', 'simple-storage' ),
+			'reconcile'       => __( 'Matching files at the same paths', 'simple-storage' ),
+			'verify_listed'   => __( 'Checking copies already in the storage', 'simple-storage' ),
+			'local_compare'   => __( 'Comparing the Media Library with the site disk', 'simple-storage' ),
+			'disable_delivery' => __( 'Turning off serving from the storage', 'simple-storage' ),
+			'local_gate'      => __( 'Checking that every file has a copy in the storage', 'simple-storage' ),
+			'remote_gate'     => __( 'Checking that every file is in WordPress', 'simple-storage' ),
 		);
+		if ( str_starts_with( $phase, 'finish_' ) ) {
+			return __( 'Finishing', 'simple-storage' );
+		}
 
 		return $labels[ $phase ] ?? $phase;
 	}
 
 	/** Phases with per-file progress bars. @return array<int, string> */
 	public static function measured_phases(): array {
-		return array( 'local_scan', 'remote_scan', 'upload', 'verify', 'delete_local', 'download', 'delete_remote', 'adopt_compare' );
+		return array( 'local_scan', 'remote_scan', 'reconcile', 'verify_listed', 'upload', 'verify', 'delete_local', 'download', 'delete_remote', 'adopt_compare', 'local_compare' );
+	}
+
+	/**
+	 * The report of a job that compares or checks before it changes anything, for the page and
+	 * WP-CLI: counts with their labels, the paths of each kind of problem, and whether the job
+	 * stopped and may be run again accepting what is missing.
+	 *
+	 * @param array<string, mixed> $job
+	 * @return array{rows: array<int, array{0: string, 1: int}>, lists: array<int, array{0: string, 1: array<int, string>}>, blocked: bool, canAccept: bool, acceptLabel: string, acceptConfirm: string}|null
+	 */
+	public static function report_view( array $job ): ?array {
+		$labels = array(
+			'attachments'  => __( 'Attachments checked:', 'simple-storage' ),
+			'files'        => __( 'Files they need:', 'simple-storage' ),
+			'found'        => __( 'In the storage:', 'simple-storage' ),
+			'on_disk'      => __( 'On the site disk:', 'simple-storage' ),
+			'missing'      => __( 'Missing:', 'simple-storage' ),
+			'mismatch'     => __( 'Different size (image optimizers can cause this):', 'simple-storage' ),
+			'outside'      => __( 'Missing outside the year and month folders (these belong on the site disk):', 'simple-storage' ),
+			'extra'        => __( 'In the storage without an attachment (theme copies, leftovers):', 'simple-storage' ),
+			'only_remote'  => __( 'Only in the storage:', 'simple-storage' ),
+			'conflicts'    => __( 'A different file at the same path on the other side:', 'simple-storage' ),
+			'local_total'  => __( 'Files in WordPress:', 'simple-storage' ),
+			'with_copy'    => __( 'With a verified copy in the storage:', 'simple-storage' ),
+			'uncopied'     => __( 'Without a verified copy in the storage:', 'simple-storage' ),
+			'remote_total' => __( 'Files in the storage:', 'simple-storage' ),
+			'with_local'   => __( 'The same file in WordPress:', 'simple-storage' ),
+		);
+
+		if ( isset( $job['adopt'] ) && is_array( $job['adopt'] ) ) {
+			$adopt  = $job['adopt'];
+			$report = array(
+				'counts'     => array(),
+				'paths'      => array(),
+				'blocked'    => ! empty( $adopt['blocked'] ),
+				'can_accept' => ! empty( $adopt['blocked'] ) && (int) ( $adopt['found'] ?? 0 ) > 0,
+			);
+			foreach ( array( 'attachments', 'files', 'found', 'on_disk', 'missing', 'mismatch', 'outside', 'extra' ) as $kind ) {
+				$report['counts'][ $kind ] = (int) ( $adopt[ $kind ] ?? 0 );
+			}
+			foreach ( array( 'missing', 'mismatch', 'outside' ) as $kind ) {
+				$report['paths'][ $kind ] = (array) ( $adopt[ $kind . '_paths' ] ?? array() );
+			}
+			$always = 3;
+		} elseif ( isset( $job['report'] ) && is_array( $job['report'] ) ) {
+			$report = $job['report'];
+			$always = 'switch_local' === $job['type'] ? 3 : 2;
+		} else {
+			return null;
+		}
+
+		$rows     = array();
+		$position = 0;
+		foreach ( (array) $report['counts'] as $kind => $count ) {
+			if ( $position++ < $always || (int) $count > 0 ) {
+				$rows[] = array( $labels[ $kind ] ?? (string) $kind, (int) $count );
+			}
+		}
+		$lists = array();
+		foreach ( (array) $report['paths'] as $kind => $paths ) {
+			if ( ! empty( $paths ) ) {
+				$lists[] = array( $labels[ $kind ] ?? (string) $kind, array_values( array_map( 'strval', (array) $paths ) ) );
+			}
+		}
+
+		$adopting = 'adopt' === $job['type'];
+
+		return array(
+			'rows'          => $rows,
+			'lists'         => $lists,
+			'blocked'       => ! empty( $report['blocked'] ),
+			'canAccept'     => ! empty( $report['can_accept'] ),
+			'acceptLabel'   => $adopting ? __( 'Connect anyway', 'simple-storage' ) : __( 'Switch anyway', 'simple-storage' ),
+			'acceptConfirm' => $adopting
+				? __( "The site will serve what the storage has. Files that are missing stay broken until they are uploaded.\n\nConnect anyway?", 'simple-storage' )
+				: __( "The site will serve its files from WordPress. Files that are missing stay broken until they are uploaded.\n\nSwitch anyway?", 'simple-storage' ),
+		);
 	}
 }

@@ -184,8 +184,10 @@ function ss_set_mode( string $mode ): void {
 	Simple_Storage_Delivery::sync();
 }
 
+// Without opcache: the built-in server caches the proxy configuration it includes for a couple of
+// seconds, so a mode switch right after another one would still be served the old way.
 $ss_server = proc_open(
-	array( getenv( 'FAKE_SITE_PHP' ) ?: PHP_BINARY, '-S', '127.0.0.1:' . $ss_port, '-t', $ss_tmp . '/site', __DIR__ . '/fake-site/router.php' ),
+	array( getenv( 'FAKE_SITE_PHP' ) ?: PHP_BINARY, '-d', 'opcache.enable=0', '-d', 'opcache.enable_cli=0', '-S', '127.0.0.1:' . $ss_port, '-t', $ss_tmp . '/site', __DIR__ . '/fake-site/router.php' ),
 	array(
 		0 => array( 'file', '/dev/null', 'r' ),
 		1 => array( 'file', $ss_tmp . '/site.log', 'w' ),
@@ -2207,6 +2209,156 @@ try {
 		wp_delete_attachment( $ss_id, true );
 	}
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	ss_section( 'Step by step: copy to the storage, delete in WordPress' );
+	// A clean slate: no media on either side, an empty index, serving off.
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+	delete_option( Simple_Storage_Jobs::OPTION );
+	foreach ( (array) glob( $ss_uploads . '/[0-9][0-9][0-9][0-9]', GLOB_ONLYDIR ) as $ss_dir ) {
+		exec( 'rm -rf ' . escapeshellarg( (string) $ss_dir ) );
+	}
+	foreach ( array_diff( is_dir( ss_remote( '' ) ) ? (array) scandir( ss_remote( '' ) ) : array(), array( '.', '..' ) ) as $ss_dir ) {
+		exec( 'rm -rf ' . escapeshellarg( ss_remote( (string) $ss_dir ) ) );
+	}
+	$GLOBALS['wpdb']->query( 'TRUNCATE TABLE ' . Simple_Storage_Index::table() );
+
+	ss_image( $ss_uploads . '/2014/03/a.jpg', 120, 90, 'jpg' );
+	ss_image( $ss_uploads . '/2014/03/a-60x45.jpg', 60, 45, 'jpg' );
+	ss_write( $ss_uploads . '/2014/03/doc.pdf', random_bytes( 50000 ) );
+	ss_image( $ss_uploads . '/2014/04/b.png', 40, 40, 'png' );
+	ss_write( $ss_uploads . '/2014/04/sub/c.txt', 'nested text' );
+	ss_write( $ss_uploads . '/2014/04/d.gif', 'GIF89a' . random_bytes( 300 ) );
+	$ss_step = array();
+	foreach ( array( '2014/03/a.jpg', '2014/03/a-60x45.jpg', '2014/03/doc.pdf', '2014/04/b.png', '2014/04/sub/c.txt', '2014/04/d.gif' ) as $ss_path ) {
+		$ss_step[ $ss_path ] = hash_file( 'sha256', $ss_uploads . '/' . $ss_path );
+	}
+	// Part of it uploaded by hand already: one file as it is, one other file of the same size,
+	// and one of another size.
+	wp_mkdir_p( dirname( ss_remote( '2014/04/d.gif' ) ) );
+	wp_mkdir_p( dirname( ss_remote( '2014/03/a.jpg' ) ) );
+	copy( $ss_uploads . '/2014/03/doc.pdf', ss_remote( '2014/03/doc.pdf' ) );
+	touch( ss_remote( '2014/03/doc.pdf' ), time() - 3600 );
+	file_put_contents( ss_remote( '2014/04/d.gif' ), 'GIF89a' . random_bytes( 300 ) );
+	file_put_contents( ss_remote( '2014/03/a.jpg' ), 'x' );
+	clearstatcache();
+	$ss_by_hand = filemtime( ss_remote( '2014/03/doc.pdf' ) );
+
+	$ss_job = ss_run_job( 'clean_local' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_job['report']['blocked'] ?? null ), 'deleting the copies in WordPress before everything is copied deletes nothing', $ss_job['message'] ?? '' );
+	ss_check( 5 === ( $ss_job['report']['counts']['uncopied'] ?? null ) && in_array( '2014/04/d.gif', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ) && in_array( '2014/03/a.jpg', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ), 'and names the files without a verified copy', $ss_job['report'] ?? array() );
+	clearstatcache();
+	ss_check( array() === array_filter( array_keys( $ss_step ), static fn( string $p ): bool => ! is_file( $ss_uploads . '/' . $p ) ), 'every local file stays' );
+	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'and nothing is switched' );
+	ss_check( ss_copied( '2014/03/doc.pdf' ) && $ss_by_hand === filemtime( ss_remote( '2014/03/doc.pdf' ) ), 'a file uploaded by hand is verified as the copy, not uploaded again' );
+	ss_check( 0 === Simple_Storage_Index::get( '2014/04/d.gif' )['remote'] && null === Simple_Storage_Index::get( '2014/04/d.gif' )['error'], 'another file of the same size under that name is no copy, and no error either' );
+
+	$ss_job = ss_run_job( 'copy_remote' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && 0 === ss_failed( $ss_job ), 'copying everything to the storage finishes', $ss_job['message'] ?? '' );
+	foreach ( $ss_step as $ss_path => $ss_hash ) {
+		ss_check( ss_copied( $ss_path ) && hash_file( 'sha256', ss_remote( $ss_path ) ) === $ss_hash, 'copied and verified, local file kept: ' . $ss_path );
+	}
+	clearstatcache();
+	ss_check( $ss_by_hand === filemtime( ss_remote( '2014/03/doc.pdf' ) ), 'the copy uploaded by hand was not uploaded again' );
+	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'copying switches nothing' );
+
+	$ss_job = ss_run_job( 'clean_local' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && false === ( $ss_job['report']['blocked'] ?? null ) && 0 === ss_failed( $ss_job ), 'with every file copied the copies in WordPress are deleted', $ss_job['message'] ?? '' );
+	foreach ( array_keys( $ss_step ) as $ss_path ) {
+		ss_check( ss_remote_only( $ss_path ), 'only in the storage now: ' . $ss_path );
+	}
+	ss_check( Simple_Storage_Delivery::active() && 'remote' === Simple_Storage_Settings::state()['mode'] && Simple_Storage_Media::auto_enabled(), 'the site serves them from the storage, and new uploads follow' );
+	$ss_response = wp_remote_get( $ss_baseurl . '/2014/04/sub/c.txt' );
+	ss_check( 200 === wp_remote_retrieve_response_code( $ss_response ) && 'nested text' === wp_remote_retrieve_body( $ss_response ), 'a file is served from the storage at its address', wp_remote_retrieve_response_code( $ss_response ) );
+
+	ss_section( 'Step by step: files brought back by hand' );
+	$ss_step_ids = array(
+		$ss_add( '2014/03/a.jpg', array( 'a-60x45.jpg' ) ),
+		$ss_add( '2014/05/gone.jpg', array() ),
+	);
+	// Downloaded from the storage and uploaded to the hosting by hand: new modification times.
+	$ss_bring = static function ( string $path ) use ( $ss_uploads ): void {
+		wp_mkdir_p( dirname( $ss_uploads . '/' . $path ) );
+		copy( ss_remote( $path ), $ss_uploads . '/' . $path );
+		touch( $ss_uploads . '/' . $path, time() - 300 );
+	};
+	foreach ( array( '2014/03/a.jpg', '2014/03/a-60x45.jpg', '2014/03/doc.pdf', '2014/04/sub/c.txt' ) as $ss_path ) {
+		$ss_bring( $ss_path );
+	}
+	// Another file of the same size; its own time, or the index would rightly take it for the copy.
+	ss_write( $ss_uploads . '/2014/04/b.png', str_repeat( 'x', filesize( ss_remote( '2014/04/b.png' ) ) ), time() - 100 );
+
+	$ss_job    = ss_run_job( 'switch_local' );
+	$ss_report = $ss_job['report'] ?? array();
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_report['blocked'] ?? null ) && 1 === $ss_report['counts']['only_remote'] && array( '2014/04/d.gif' ) === $ss_report['paths']['only_remote'], 'a file left only in the storage stops the switch and is named', $ss_report );
+	ss_check( 1 === $ss_report['counts']['conflicts'] && array( '2014/04/b.png' ) === $ss_report['paths']['conflicts'], 'so does a different file at the same path', $ss_report );
+	ss_check( 1 === $ss_report['counts']['missing'] && array( '2014/05/gone.jpg' ) === $ss_report['paths']['missing'] && 2 === $ss_report['counts']['attachments'] && 3 === $ss_report['counts']['files'] && 2 === $ss_report['counts']['on_disk'], 'and a file of the Media Library that is nowhere is named too', $ss_report );
+	$ss_row = Simple_Storage_Index::get( '2014/03/a.jpg' );
+	ss_check( 0 === $ss_row['conflict'] && 1 === $ss_row['local'] && 1 === $ss_row['remote'], 'the same file brought back under a new time is matched as the copy', $ss_row );
+	ss_check( Simple_Storage_Delivery::active() && 'remote' === Simple_Storage_Settings::state()['mode'] && false === $ss_report['can_accept'], 'nothing is switched, and switching anyway is not offered while files would break' );
+	$ss_job = ss_run_job( 'switch_local', array( 'accept_missing' => true ) );
+	ss_check( true === ( $ss_job['report']['blocked'] ?? null ) && Simple_Storage_Delivery::active(), 'not even when accepted' );
+
+	$ss_bring( '2014/04/d.gif' );
+	$ss_job = ss_run_job( 'switch_local', array( 'accept_missing' => true ) );
+	ss_check( true === ( $ss_job['report']['blocked'] ?? null ) && 0 === ( $ss_job['report']['counts']['only_remote'] ?? null ) && 1 === ( $ss_job['report']['counts']['conflicts'] ?? null ) && Simple_Storage_Delivery::active(), 'a different file at the same path alone stops the switch too, accepted or not', $ss_job['report'] ?? array() );
+	$ss_bring( '2014/04/b.png' );
+	$ss_job    = ss_run_job( 'switch_local' );
+	$ss_report = $ss_job['report'] ?? array();
+	ss_check( true === ( $ss_report['blocked'] ?? null ) && 0 === $ss_report['counts']['only_remote'] && 0 === $ss_report['counts']['conflicts'] && true === $ss_report['can_accept'] && Simple_Storage_Delivery::active(), 'with only files missing on both sides it stops, but may be accepted', $ss_report );
+	$ss_job = ss_run_job( 'switch_local', array( 'accept_missing' => true ) );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && false === ( $ss_job['report']['blocked'] ?? null ) && ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'] && ! is_file( $ss_uploads . '/.htaccess' ), 'switching anyway turns serving from the storage off', $ss_job['message'] ?? '' );
+	clearstatcache();
+	ss_check( array() === array_filter( array_keys( $ss_step ), static fn( string $p ): bool => ! is_file( ss_remote( $p ) ) ), 'the copies in the storage are kept' );
+	ss_check( 0 === Simple_Storage_Index::remote_only_count() && count( $ss_step ) === Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1 ) )['files'], 'every file is on both sides now', Simple_Storage_Index::stats() );
+	$ss_response = wp_remote_get( $ss_baseurl . '/2014/04/d.gif' );
+	ss_check( 200 === wp_remote_retrieve_response_code( $ss_response ) && hash( 'sha256', wp_remote_retrieve_body( $ss_response ) ) === $ss_step['2014/04/d.gif'], 'the site serves the file it got back', wp_remote_retrieve_response_code( $ss_response ) );
+
+	ss_section( 'Step by step: copy to WordPress, delete in the storage' );
+	wp_mkdir_p( dirname( ss_remote( '2014/06/only-there.txt' ) ) );
+	file_put_contents( ss_remote( '2014/06/only-there.txt' ), 'only in the storage' );
+	ss_write( $ss_uploads . '/2014/06/mine.txt', 'mine' );
+	file_put_contents( ss_remote( '2014/06/mine.txt' ), 'not mine, and longer' );
+
+	$ss_job = ss_run_job( 'clean_remote' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_job['report']['blocked'] ?? null ) && array( '2014/06/only-there.txt' ) === ( $ss_job['report']['paths']['only_remote'] ?? null ), 'deleting the copies in the storage while a file is only there deletes nothing and names it', $ss_job['report'] ?? array() );
+	clearstatcache();
+	ss_check( is_file( ss_remote( '2014/03/a.jpg' ) ) && is_file( ss_remote( '2014/06/only-there.txt' ) ) && 'local' === Simple_Storage_Settings::state()['mode'], 'every copy in the storage stays' );
+
+	Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
+	$ss_job = ss_run_job( 'copy_local' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && 0 === ss_failed( $ss_job ), 'copying everything to WordPress finishes', $ss_job['message'] ?? '' );
+	clearstatcache();
+	ss_check( 'only in the storage' === (string) @file_get_contents( $ss_uploads . '/2014/06/only-there.txt' ) && is_file( ss_remote( '2014/06/only-there.txt' ) ), 'a file that was only in the storage is in WordPress too, and still in the storage' );
+	ss_check( 'local' === Simple_Storage_Settings::state()['mode'] && 0 === Simple_Storage_Index::remote_only_count(), 'new uploads stay in WordPress from now on' );
+
+	Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
+	$ss_job = ss_run_job( 'clean_remote' );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && false === ( $ss_job['report']['blocked'] ?? null ) && 0 === ss_failed( $ss_job ), 'with every file in WordPress the copies in the storage are deleted', $ss_job['message'] ?? '' );
+	clearstatcache();
+	foreach ( array_merge( array_keys( $ss_step ), array( '2014/06/only-there.txt' ) ) as $ss_path ) {
+		ss_check( ! is_file( ss_remote( $ss_path ) ) && is_file( $ss_uploads . '/' . $ss_path ) && ( ! isset( $ss_step[ $ss_path ] ) || hash_file( 'sha256', $ss_uploads . '/' . $ss_path ) === $ss_step[ $ss_path ] ), 'deleted in the storage, intact in WordPress: ' . $ss_path );
+	}
+	ss_check( 'not mine, and longer' === (string) @file_get_contents( ss_remote( '2014/06/mine.txt' ) ) && 'mine' === file_get_contents( $ss_uploads . '/2014/06/mine.txt' ), 'a different file at the same path in the storage is kept' );
+	$ss_warnings = implode( ' ', (array) $ss_job['warnings'] );
+	ss_check( str_contains( $ss_warnings, '1 files' ) && str_contains( $ss_warnings, '2014/06/mine.txt' ) && ! str_contains( $ss_warnings, '2014/03/a.jpg' ), 'and named, without the copies that were deleted', $ss_job['warnings'] );
+	ss_check( ! ss_remote_dir( '2014/03' ) && ! ss_remote_dir( '2014/04' ) && ss_remote_dir( '2014/06' ), 'empty storage folders are removed, the one with the kept file stays' );
+	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'serving from the storage is off, and new uploads stay in WordPress' );
+
+	ss_section( 'Step by step: a cancelled copy to WordPress' );
+	Simple_Storage_Delivery::enable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
+	ss_check( ! is_wp_error( Simple_Storage_Jobs::start( 'copy_local' ) ) && 'local' === Simple_Storage_Settings::state()['mode'], 'new uploads stay in WordPress as soon as the copy starts' );
+	Simple_Storage_Jobs::cancel();
+	ss_check( 'remote' === Simple_Storage_Settings::state()['mode'], 'a cancelled copy gives the old mode back' );
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+	foreach ( $ss_step_ids as $ss_id ) {
+		wp_delete_attachment( $ss_id, true );
+	}
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
 } finally {
 	ss_section( 'Cleanup' );

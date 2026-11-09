@@ -108,18 +108,56 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 			<button type="button" class="button button-hero" data-ss-start="pull"><?php esc_html_e( 'Return everything to WordPress', 'simple-storage' ); ?></button>
 			<p class="description"><?php esc_html_e( 'Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads.', 'simple-storage' ); ?></p>
 		</div>
-		<div>
-			<button type="button" class="button button-hero" data-ss-start="adopt"><?php esc_html_e( 'Connect files uploaded by hand', 'simple-storage' ); ?></button>
-			<p class="description">
-				<?php
-				printf(
-					/* translators: 1: folder in the storage, 2: example path. */
-					esc_html__( 'For media that do not fit on the hosting: upload the year and month folders to %1$s yourself (FTP), for example %2$s, then press this button. It compares them with the Media Library and turns on serving. Nothing is copied.', 'simple-storage' ),
-					'<code>' . esc_html( Simple_Storage_Paths::remote_root() ) . '</code>',
-					'<code>' . esc_html( Simple_Storage_Paths::remote_root() . '/2024/05/photo.jpg' ) . '</code>'
-				);
-				?>
-			</p>
+	</div>
+</section>
+
+<section class="ss-card ss-steps">
+	<h2><?php esc_html_e( 'Step by step', 'simple-storage' ); ?></h2>
+	<p class="description"><?php esc_html_e( 'For a move done by hand or in stages, and for a site whose files are partly in WordPress and partly in the storage. Copying never deletes anything. Switching copies nothing: it checks the files and changes where the site serves them from. Deleting happens only when every file has a verified copy on the other side; otherwise nothing is deleted and the job names what is missing.', 'simple-storage' ); ?></p>
+	<p class="description">
+		<?php
+		printf(
+			/* translators: 1: folder in the storage, 2: example path. */
+			esc_html__( 'Step 1 can also be done by hand (FTP), for example for media that do not fit on the hosting: copy the year and month folders of uploads to %1$s (as in %2$s), or from there back into uploads, then continue with step 2.', 'simple-storage' ),
+			'<code>' . esc_html( Simple_Storage_Paths::remote_root() ) . '</code>',
+			'<code>' . esc_html( Simple_Storage_Paths::remote_root() . '/2024/05/photo.jpg' ) . '</code>'
+		);
+		?>
+	</p>
+	<div class="ss-lanes">
+		<div class="ss-lane">
+			<h3><?php esc_html_e( 'To the storage', 'simple-storage' ); ?></h3>
+			<ol class="ss-lane-steps">
+				<li>
+					<button type="button" class="button" data-ss-start="copy_remote"><?php esc_html_e( 'Copy everything to the storage', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'Uploads what is only in WordPress and verifies every copy; files already in the storage (uploaded by hand) are verified, not uploaded again. Nothing is deleted.', 'simple-storage' ); ?></p>
+				</li>
+				<li>
+					<button type="button" class="button" data-ss-start="adopt"><?php esc_html_e( 'Switch to the storage', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'Compares the storage with the Media Library and, when nothing is missing, turns on serving from the storage; new uploads follow there. Nothing is copied or deleted.', 'simple-storage' ); ?></p>
+				</li>
+				<li>
+					<button type="button" class="button button-link-delete" data-ss-start="clean_local"><?php esc_html_e( 'Delete the copies in WordPress', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'Frees the hosting disk. Only if every local file has a verified copy in the storage: then serving from the storage is turned on and checked, and the local copies are deleted.', 'simple-storage' ); ?></p>
+				</li>
+			</ol>
+		</div>
+		<div class="ss-lane">
+			<h3><?php esc_html_e( 'To WordPress', 'simple-storage' ); ?></h3>
+			<ol class="ss-lane-steps">
+				<li>
+					<button type="button" class="button" data-ss-start="copy_local"><?php esc_html_e( 'Copy everything to WordPress', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'Downloads what is only in the storage and verifies every file; new uploads stay in WordPress from now on. Nothing is deleted.', 'simple-storage' ); ?></p>
+				</li>
+				<li>
+					<button type="button" class="button" data-ss-start="switch_local"><?php esc_html_e( 'Switch to WordPress', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'For files brought back by hand: checks that every file in the storage and every file of the Media Library is in WordPress, then turns serving from the storage off. Nothing is copied or deleted.', 'simple-storage' ); ?></p>
+				</li>
+				<li>
+					<button type="button" class="button button-link-delete" data-ss-start="clean_remote"><?php esc_html_e( 'Delete the copies in the storage', 'simple-storage' ); ?></button>
+					<p class="description"><?php esc_html_e( 'Frees the storage. Only if every file in the storage is in WordPress too, with the same contents: then the copies in the storage are deleted and serving from it is turned off.', 'simple-storage' ); ?></p>
+				</li>
+			</ol>
 		</div>
 	</div>
 </section>
@@ -133,7 +171,7 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 	<ol class="ss-phases" data-ss="job-phases"></ol>
 	<p class="ss-job-current" data-ss="job-current"></p>
 	<div data-ss="job-message"></div>
-	<div class="ss-adopt" data-ss="job-adopt"></div>
+	<div class="ss-report" data-ss="job-report"></div>
 	<ul class="ss-warnings" data-ss="job-warnings"></ul>
 	<p class="ss-job-buttons" data-ss="job-buttons"></p>
 </section>

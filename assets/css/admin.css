@@ -124,6 +124,11 @@
 	gap: 4px 8px;
 }
 
+/* display: flex above would show the checks while serving is off. */
+.simple-storage .ss-checks[hidden] {
+	display: none;
+}
+
 .simple-storage .ss-transfer-actions {
 	display: grid;
 	gap: 16px 32px;
@@ -132,6 +137,34 @@
 
 .simple-storage .ss-transfer-actions .button-hero {
 	white-space: normal;
+}
+
+.simple-storage .ss-lanes {
+	display: grid;
+	gap: 16px 32px;
+	grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+	margin-top: 12px;
+}
+
+.simple-storage .ss-lane h3 {
+	margin: 0 0 8px;
+}
+
+.simple-storage .ss-lane-steps {
+	margin: 0 0 0 1.5em;
+}
+
+.simple-storage .ss-lane-steps li {
+	margin-bottom: 14px;
+}
+
+.simple-storage .ss-lane-steps .button {
+	height: auto;
+	white-space: normal;
+}
+
+.simple-storage .ss-lane-steps .description {
+	margin-top: 4px;
 }
 
 .simple-storage .ss-job-head {
@@ -210,13 +243,13 @@
 	grid-column: 2;
 }
 
-.simple-storage .ss-adopt table {
+.simple-storage .ss-report table {
 	border-collapse: collapse;
 	margin: 8px 0;
 }
 
-.simple-storage .ss-adopt th,
-.simple-storage .ss-adopt td {
+.simple-storage .ss-report th,
+.simple-storage .ss-report td {
 	border-bottom: 1px solid #f0f0f1;
 	font-weight: 400;
 	padding: 4px 16px 4px 0;
@@ -224,15 +257,15 @@
 	vertical-align: top;
 }
 
-.simple-storage .ss-adopt td {
+.simple-storage .ss-report td {
 	white-space: nowrap;
 }
 
-.simple-storage .ss-adopt ul {
+.simple-storage .ss-report ul {
 	margin: 4px 0 12px 16px;
 }
 
-.simple-storage .ss-adopt code {
+.simple-storage .ss-report code {
 	word-break: break-all;
 }
 
