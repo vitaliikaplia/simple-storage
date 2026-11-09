@@ -334,7 +334,7 @@ final class Simple_Storage_Jobs {
 	private function complete_phase( string $phase ): void {
 		$progress = $this->job['progress'][ $phase ] ?? array();
 		// Comparisons and checks have a report of their own, not rows with errors.
-		if ( ! empty( $progress['failed'] ) && ! in_array( $phase, array( 'adopt_compare', 'local_compare', 'local_gate', 'remote_gate' ), true ) ) {
+		if ( ! empty( $progress['failed'] ) && ! in_array( $phase, self::warning_phases(), true ) ) {
 			Simple_Storage_Log::warning(
 				/* translators: 1: phase name, 2: number of files. */
 				sprintf( __( '%1$s: %2$d files failed; see the error list.', 'simple-storage' ), self::phase_label( $phase ), (int) $progress['failed'] )
@@ -362,7 +362,10 @@ final class Simple_Storage_Jobs {
 		}
 
 		$message = self::type_label( (string) $this->job['type'] ) . ': ' . __( 'finished.', 'simple-storage' );
-		if ( 'adopt' === $this->job['type'] ) {
+		if ( 'adopt' === $this->job['type'] && ! empty( $this->job['delivery_failed'] ) ) {
+			/* translators: 1: number of files, 2: why the site does not serve them. */
+			$message = sprintf( __( 'Switched to the storage: %1$d files of the Media Library are there, but the site does not serve them yet. %2$s', 'simple-storage' ), (int) ( $this->job['adopt']['found'] ?? 0 ), (string) $this->job['delivery_failed'] );
+		} elseif ( 'adopt' === $this->job['type'] ) {
 			$message = self::adopt_message( (array) ( $this->job['adopt'] ?? array() ) );
 		} elseif ( isset( $this->job['summary'] ) ) {
 			// A step-by-step job says itself what happened, and what did not.
@@ -1460,6 +1463,10 @@ final class Simple_Storage_Jobs {
 	 * local files (delete_local checks each file). Only a passed check switches the site to the
 	 * "remote" mode in which new uploads follow automatically.
 	 *
+	 * Switching to files uploaded by hand (adopt) deletes nothing, so there a failed check stops
+	 * nothing either: the switch is made, the overview names what the server does wrong until a
+	 * check passes, and new uploads stay local meanwhile (the automatic offload needs a passed one).
+	 *
 	 * @return bool|WP_Error
 	 */
 	private function phase_check_delivery( float $deadline ) {
@@ -1471,7 +1478,16 @@ final class Simple_Storage_Jobs {
 			return $report;
 		}
 		if ( empty( $report['ok'] ) ) {
-			return new WP_Error( 'simple_storage_delivery_check', (string) reset( $report['failed'] ) );
+			$explained = Simple_Storage_Delivery::explain( $report );
+			if ( ! $adopting ) {
+				return new WP_Error( 'simple_storage_delivery_check', $explained );
+			}
+
+			$this->job['delivery_failed']                      = $explained;
+			$this->job['progress']['check_delivery']['failed'] = count( $report['failed'] );
+			Simple_Storage_Settings::update_state( array( 'mode' => 'remote' ) );
+
+			return true;
 		}
 		foreach ( $report['failed'] as $extension => $message ) {
 			$this->warn(
@@ -1782,6 +1798,16 @@ final class Simple_Storage_Jobs {
 		}
 
 		return $labels[ $phase ] ?? $phase;
+	}
+
+	/**
+	 * Phases whose failures are findings with a report or message of their own (files missing in a
+	 * comparison, a serving check that did not pass), not files that failed.
+	 *
+	 * @return array<int, string>
+	 */
+	public static function warning_phases(): array {
+		return array( 'adopt_compare', 'local_compare', 'local_gate', 'remote_gate', 'check_delivery' );
 	}
 
 	/** Phases with per-file progress bars. @return array<int, string> */

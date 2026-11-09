@@ -224,6 +224,7 @@ try {
 	ss_check( '2024/05/Фото тест.png' === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/%D0%A4%D0%BE%D1%82%D0%BE%20%D1%82%D0%B5%D1%81%D1%82.png?x=1', '/wp-content/uploads' ), 'proxy maps a request to a media path' );
 	ss_check( null === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/../../wp-config.php', '/wp-content/uploads' ), 'proxy refuses traversal' );
 	ss_check( null === Simple_Storage_Proxy::relative_from_request( '/wp-content/plugins/simple-storage/proxy.php', '/wp-content/uploads' ), 'proxy refuses its own address' );
+	ss_check( null === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/photo.jpg%0A', '/wp-content/uploads' ) && null === Simple_Storage_Proxy::relative_from_request( '/wp-content/uploads/2024/05/a%7F.jpg', '/wp-content/uploads' ), 'proxy refuses a control character in the name' );
 
 	ss_section( 'Setup' );
 
@@ -307,11 +308,13 @@ try {
 
 	ss_section( 'Delivery check refuses to delete when serving is broken' );
 	$ss_not_found = array( 'headers' => array(), 'body' => 'Not Found', 'response' => array( 'code' => 404, 'message' => 'Not Found' ), 'cookies' => array(), 'filename' => null );
-	$ss_break     = static fn( $pre, $args, $url ) => str_contains( $url, '/wp-content/uploads/0000/00/' ) ? $ss_not_found : $pre;
+	$ss_break     = static fn( $pre, $args, $url ) => str_contains( $url, '/wp-content/uploads/0000/00/' ) || str_ends_with( $url, '/proxy.php' ) ? $ss_not_found : $pre;
 	add_filter( 'pre_http_request', $ss_break, 10, 3 );
 	$ss_job = ss_run_job( 'push' );
 	remove_filter( 'pre_http_request', $ss_break, 10 );
 	ss_check( 'failed' === ( $ss_job['status'] ?? '' ) && 'check_delivery' === $ss_job['phases'][ $ss_job['phase'] ], 'push stops at the delivery check', array( $ss_job['status'] ?? '', $ss_job['message'] ?? '' ) );
+	ss_check( str_contains( (string) ( $ss_job['message'] ?? '' ), '(answer 404)' ) && str_contains( (string) ( $ss_job['message'] ?? '' ), 'Check that the uploads/.htaccess rules work' ), 'with what to check when nothing points at a cause', $ss_job['message'] ?? '' );
+	ss_check( '' !== Simple_Storage_Settings::state()['delivery_problem'], 'and the overview keeps the problem' );
 	ss_check( count( $ss_expected ) === Simple_Storage_Index::totals( array( 'local' => 1 ) )['files'] && is_file( $ss_uploads . '/2024/05/photo.jpg' ), 'every local file kept' );
 	ss_check( ! file_exists( $ss_fake_root . '/' . $ss_prefix . '/0000' ), 'delivery probe removed from the storage' );
 	ss_check( 'local' === Simple_Storage_Settings::state()['mode'] && ! Simple_Storage_Delivery::delivery_verified() && ! Simple_Storage_Media::auto_enabled(), 'a failed check never switches the site to the remote mode' );
@@ -2393,11 +2396,14 @@ try {
 		'both_bytes'  => 0,
 		'remote_only' => 0,
 		'conflicts'   => 0,
+		'delivery_problem' => '',
 	);
 	$ss_next_of = static fn( array $changes ): string => (string) ( Simple_Storage_Admin::next_step( array_merge( $ss_base, $changes ) )['action'] ?? 'none' );
 	$ss_cases   = array(
 		array( array( 'job_active' => true, 'local_only' => 5 ), 'none', 'nothing is suggested while a job is unfinished' ),
 		array( array( 'configured' => false ), 'settings', 'without a connection: the settings' ),
+		array( array( 'configured' => false, 'delivery_problem' => 'X' ), 'settings', 'the connection comes before a serving problem' ),
+		array( array( 'delivery_problem' => 'X', 'conflicts' => 2, 'delivery' => true, 'mode' => 'remote', 'remote_only' => 4 ), 'verify', 'serving that does not work comes before everything else: check it again' ),
 		array( array( 'indexed' => false ), 'index', 'never indexed: index' ),
 		array( array( 'conflicts' => 2, 'unverified' => 3 ), 'index', 'name conflicts come first' ),
 		array( array( 'unverified' => 3, 'local_only' => 3 ), 'verify_remote', 'files of the same name in the storage: check them' ),
@@ -2435,6 +2441,66 @@ try {
 	Simple_Storage_Delivery::disable();
 	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
 	wp_delete_attachment( $ss_kept, true );
+	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
+	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	ss_section( 'Switching to the storage while serving is broken' );
+	// The files are only in the storage (uploaded by hand), and the server breaks serving the way
+	// a real one did: a line of uploads/.htaccess it refuses (500 for any missing file in uploads)
+	// and a security rule that forbids PHP in the plugins folder (403 for proxy.php).
+	$ss_far = $ss_add( '2012/03/far.jpg', array( 'far-60x60.jpg' ) );
+	$ss_hand( '2012/03/far.jpg', 900 );
+	$ss_hand( '2012/03/far-60x60.jpg', 300 );
+	file_put_contents( Simple_Storage_Delivery::htaccess_file(), "Options -Indexes -ExecCGI\n<IfModule mod_php.c>\n\tphp_flag engine off\n</IfModule>\nphp_value upload_max_filesize 64M\n" );
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	$ss_root_file = get_home_path() . '.htaccess';
+	$ss_root_was  = is_file( $ss_root_file ) ? (string) file_get_contents( $ss_root_file ) : null;
+	file_put_contents( $ss_root_file, "RewriteEngine On\nRewriteRule ^wp\\-content/plugins/.*\\.(?:php[1-7]?|pht|phtml?|phps)\\.?$ - [NC,F]\n" );
+	$ss_answer = static fn( int $code ): array => array( 'headers' => array(), 'body' => 'Server says no', 'response' => array( 'code' => $code, 'message' => '' ), 'cookies' => array(), 'filename' => null );
+	$ss_broken = static function ( $pre, $args, $url ) use ( $ss_baseurl, $ss_answer ) {
+		if ( str_starts_with( (string) $url, $ss_baseurl . '/' ) ) {
+			return $ss_answer( 500 );
+		}
+
+		return str_ends_with( (string) $url, '/simple-storage/proxy.php' ) ? $ss_answer( 403 ) : $pre;
+	};
+	add_filter( 'pre_http_request', $ss_broken, 10, 3 );
+	$ss_job     = ss_run_job( 'adopt', array( 'accept_missing' => true ) );
+	$ss_problem = Simple_Storage_Settings::state()['delivery_problem'];
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && ! empty( $ss_job['delivery_failed'] ) && empty( $ss_job['skipped_phases'] ), 'the switch is not stopped: no local copy is at stake', array( $ss_job['status'] ?? '', $ss_job['message'] ?? '' ) );
+	ss_check( str_starts_with( (string) ( $ss_job['message'] ?? '' ), 'Switched to the storage:' ) && str_contains( (string) $ss_job['message'], 'does not serve them yet' ) && 0 < (int) ( $ss_job['progress']['check_delivery']['failed'] ?? 0 ), 'and says the site does not serve the files yet', $ss_job['message'] ?? '' );
+	ss_check( Simple_Storage_Delivery::active() && 'remote' === Simple_Storage_Settings::state()['mode'], 'the site is switched to the storage' );
+	ss_check( ! Simple_Storage_Delivery::delivery_verified() && ! Simple_Storage_Media::auto_enabled(), 'but new uploads stay in WordPress until serving works' );
+	ss_check( str_contains( $ss_problem, '“Options -Indexes -ExecCGI”' ) && str_contains( $ss_problem, '“php_value upload_max_filesize 64M”' ), 'the problem names the lines of uploads/.htaccess the server refuses', $ss_problem );
+	ss_check( ! str_contains( $ss_problem, 'php_flag' ), 'but not a PHP setting guarded by its module', $ss_problem );
+	ss_check( str_contains( $ss_problem, 'RewriteCond %{REQUEST_URI} !^' . str_replace( '.', '\\.', (string) wp_parse_url( SIMPLE_STORAGE_URL . 'proxy.php', PHP_URL_PATH ) ) . '$' ) && str_contains( $ss_problem, '[NC,F]' ), 'and the rule that refuses proxy.php, with the exception to add', $ss_problem );
+	ss_check( str_contains( $ss_problem, 'Directly from the storage' ), 'and offers the direct mode meanwhile', $ss_problem );
+	$ss_next = Simple_Storage_Admin::next_step( Simple_Storage_Admin::situation( Simple_Storage_Settings::state(), Simple_Storage_Index::stats() ) );
+	ss_check( 'verify' === ( $ss_next['action'] ?? '' ) && 'warning' === ( $ss_next['tone'] ?? '' ) && str_contains( (string) $ss_next['text'], 'ExecCGI' ), 'the next step is that problem, with a check of serving', $ss_next );
+	$ss_new = Simple_Storage_Settings::get();
+	Simple_Storage_Settings::update_state( array( 'delivery_problem' => '' ) );
+	Simple_Storage_Admin::settings_saved( $ss_new, $ss_new );
+	ss_check( str_contains( Simple_Storage_Settings::state()['delivery_problem'], 'ExecCGI' ), 'a check after saving the settings records it as well' );
+	remove_filter( 'pre_http_request', $ss_broken, 10 );
+	if ( null === $ss_root_was ) {
+		unlink( $ss_root_file );
+	} else {
+		file_put_contents( $ss_root_file, $ss_root_was );
+	}
+	$ss_report = Simple_Storage_Delivery::verify_current();
+	ss_check( ! is_wp_error( $ss_report ) && ! empty( $ss_report['ok'] ) && '' === Simple_Storage_Settings::state()['delivery_problem'], 'once the server is fixed, a check clears the problem', is_wp_error( $ss_report ) ? $ss_report->get_error_message() : $ss_report );
+	ss_check( Simple_Storage_Media::auto_enabled() && ss_remote_only( '2012/03/far.jpg' ), 'and new uploads follow into the storage' );
+	$ss_next = Simple_Storage_Admin::next_step( Simple_Storage_Admin::situation( Simple_Storage_Settings::state(), Simple_Storage_Index::stats() ) );
+	ss_check( 'verify' !== ( $ss_next['action'] ?? '' ), 'the next step moves on', $ss_next );
+	Simple_Storage_Settings::update_state( array( 'delivery_problem' => 'X' ) );
+	Simple_Storage_Delivery::disable();
+	ss_check( '' === Simple_Storage_Settings::state()['delivery_problem'], 'turning serving off forgets the problem' );
+	Simple_Storage_Settings::update_state( array( 'delivery_problem' => 'X' ) );
+	ss_check( '' === Simple_Storage_Admin::situation( Simple_Storage_Settings::state(), Simple_Storage_Index::stats() )['delivery_problem'], 'and with serving off it is never suggested' );
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local', 'delivery_problem' => '' ) );
+	@unlink( Simple_Storage_Delivery::htaccess_file() );
+	wp_delete_attachment( $ss_far, true );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Prune::HOOK );

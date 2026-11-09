@@ -230,6 +230,7 @@ final class Simple_Storage_Delivery {
 			array(
 				'delivery'          => false,
 				'verified_delivery' => array(),
+				'delivery_problem'  => '',
 			)
 		);
 		self::remove_htaccess();
@@ -383,15 +384,18 @@ final class Simple_Storage_Delivery {
 		$stored   = Simple_Storage_Settings::state()['verified_delivery'];
 		$verified = ( $stored['signature'] ?? '' ) === self::delivery_signature() ? (array) ( $stored['extensions'] ?? array() ) : array();
 		$verified = array_values( array_diff( array_unique( array_merge( $verified, $report['ok'] ) ), array_keys( $report['failed'] ) ) );
-		Simple_Storage_Settings::update_state(
-			array(
-				'verified_delivery' => array(
-					'signature'  => self::delivery_signature(),
-					'extensions' => $verified,
-					'time'       => time(),
-				),
-			)
+		$changes  = array(
+			'verified_delivery' => array(
+				'signature'  => self::delivery_signature(),
+				'extensions' => $verified,
+				'time'       => time(),
+			),
 		);
+		if ( ! empty( $report['ok'] ) ) {
+			// Serving works: the problem a failed check recorded is over.
+			$changes['delivery_problem'] = '';
+		}
+		Simple_Storage_Settings::update_state( $changes );
 
 		foreach ( $report['failed'] as $extension => $message ) {
 			Simple_Storage_Log::warning( $message . ( '' !== $extension ? ' (.' . $extension . ')' : '' ) );
@@ -425,8 +429,136 @@ final class Simple_Storage_Delivery {
 		return new WP_Error(
 			'simple_storage_delivery_check',
 			/* translators: 1: URL, 2: HTTP status code. */
-			sprintf( __( 'A file that exists only in the storage is not served at its site address %1$s (answer %2$d). Check that the uploads/.htaccess rules work or that the server passes missing files to WordPress, and that the proxy configuration next to the plugins folder could be written.', 'simple-storage' ), $url, $status )
+			sprintf( __( 'A file that exists only in the storage is not served at its site address %1$s (answer %2$d).', 'simple-storage' ), $url, $status )
 		);
+	}
+
+	/**
+	 * What to tell about a serving check that failed: its first failure and, when nothing at all
+	 * was served, what the server answers around it. Such a problem is remembered for the overview
+	 * until a check passes or serving is turned off.
+	 *
+	 * @param array{ok: array<int, string>, failed: array<string, string>} $report
+	 */
+	public static function explain( array $report ): string {
+		$first = (string) reset( $report['failed'] );
+		if ( ! empty( $report['ok'] ) || empty( $report['failed'] ) ) {
+			return $first;
+		}
+
+		$causes = self::diagnose();
+		if ( empty( $causes ) ) {
+			$causes[] = __( 'Check that the uploads/.htaccess rules work or that the server passes missing files to WordPress, and that the proxy configuration next to the plugins folder could be written.', 'simple-storage' );
+		}
+		$text = trim( $first . ' ' . implode( ' ', $causes ) );
+		Simple_Storage_Settings::update_state( array( 'delivery_problem' => $text ) );
+
+		return $text;
+	}
+
+	/**
+	 * Requests around a failed check that name its cause: a missing file anywhere in uploads (no
+	 * rule of the plugin applies to it, so an error there comes from the rest of uploads/.htaccess)
+	 * and proxy.php itself (a security rule that forbids PHP in the plugins folder).
+	 *
+	 * @return array<int, string> Sentences, empty when nothing points at a cause.
+	 */
+	public static function diagnose(): array {
+		$causes  = array();
+		$proxy   = 'proxy' === Simple_Storage_Settings::delivery_mode();
+		$missing = self::probe_request( Simple_Storage_Paths::uploads()['baseurl'] . '/simple-storage-missing-' . strtolower( wp_generate_password( 8, false, false ) ) . '.txt', 0 );
+		$status  = is_wp_error( $missing ) ? 0 : (int) wp_remote_retrieve_response_code( $missing );
+		if ( $status >= 500 ) {
+			$lines    = array_map(
+				/* translators: %s: a line of an .htaccess file, quoted. */
+				static fn( string $line ): string => sprintf( __( '“%s”', 'simple-storage' ), $line ),
+				self::rejected_lines( self::htaccess_file() )
+			);
+			$causes[] = empty( $lines )
+				/* translators: %d: HTTP status code. */
+				? sprintf( __( 'The server answers %d for any missing file in uploads, not only for media: it rejects uploads/.htaccess itself. Its error log names the line.', 'simple-storage' ), $status )
+				/* translators: 1: HTTP status code, 2: lines of uploads/.htaccess. */
+				: sprintf( __( 'The server answers %1$d for any missing file in uploads, not only for media: it rejects a line of uploads/.htaccess outside the Simple Storage block, most likely %2$s. Many hosts do not allow it in .htaccess: remove or change it.', 'simple-storage' ), $status, implode( ', ', $lines ) );
+		}
+
+		if ( $proxy && 'php' === self::proxy_engine() ) {
+			$url      = SIMPLE_STORAGE_URL . 'proxy.php';
+			$path     = (string) wp_parse_url( $url, PHP_URL_PATH );
+			$response = self::probe_request( $url, 0 );
+			// proxy.php marks its own answers; anything else came from the server in front of it.
+			if ( ! is_wp_error( $response ) && '' === (string) wp_remote_retrieve_header( $response, 'x-simple-storage' ) ) {
+				$status    = (int) wp_remote_retrieve_response_code( $response );
+				$exception = 'RewriteCond %{REQUEST_URI} !^' . str_replace( '.', '\\.', $path ) . '$';
+				if ( 401 === $status || 403 === $status ) {
+					$rule     = self::blocking_rule();
+					$causes[] = '' === $rule
+						/* translators: 1: URL path of proxy.php, 2: HTTP status code, 3: an .htaccess line. */
+						? sprintf( __( 'Requests to %1$s are refused (answer %2$d): the server or a security rule forbids PHP files in the plugins folder. Allow this one file; in .htaccess, put %3$s right before the rule that forbids them.', 'simple-storage' ), $path, $status, $exception )
+						/* translators: 1: URL path of proxy.php, 2: HTTP status code, 3: an .htaccess line, 4: an .htaccess line. */
+						: sprintf( __( 'Requests to %1$s are refused (answer %2$d) by the rule %3$s in the .htaccess of the site, which forbids PHP files in the plugins folder. Put %4$s right before it.', 'simple-storage' ), $path, $status, $rule, $exception );
+				} elseif ( $status >= 500 ) {
+					/* translators: 1: URL path of proxy.php, 2: HTTP status code. */
+					$causes[] = sprintf( __( '%1$s does not run (answer %2$d): see the PHP error log.', 'simple-storage' ), $path, $status );
+				}
+			}
+		}
+
+		if ( $proxy && ! empty( $causes ) ) {
+			$causes[] = __( 'Until it is fixed, the "Directly from the storage" mode can serve the pages: it points them at the storage and needs none of these rules.', 'simple-storage' );
+		}
+
+		return $causes;
+	}
+
+	/**
+	 * Lines of an .htaccess file outside the plugin's block that hosts commonly refuse there:
+	 * Options with ExecCGI, Includes or FollowSymLinks, and PHP settings that no <IfModule> for
+	 * mod_php guards (with PHP-FPM they are unknown directives).
+	 *
+	 * @return array<int, string>
+	 */
+	private static function rejected_lines( string $file ): array {
+		$text = is_readable( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$ours = false;
+		$php  = array();
+		$hits = array();
+		foreach ( (array) preg_split( '/\R/', $text ) as $line ) {
+			$line = trim( (string) $line );
+			if ( str_starts_with( $line, '# BEGIN Simple Storage' ) ) {
+				$ours = true;
+			} elseif ( str_starts_with( $line, '# END Simple Storage' ) ) {
+				$ours = false;
+			} elseif ( $ours || '' === $line || '#' === $line[0] ) {
+				continue;
+			} elseif ( preg_match( '/^<IfModule\s+(!?)\s*([^>\s]+)\s*>/i', $line, $match ) ) {
+				$php[] = '' === $match[1] && false !== stripos( $match[2], 'php' );
+			} elseif ( preg_match( '#^</IfModule\s*>#i', $line ) ) {
+				array_pop( $php );
+			} elseif ( preg_match( '/^Options\s.*\b(?:ExecCGI|Includes|FollowSymLinks)\b/i', $line ) ) {
+				$hits[] = $line;
+			} elseif ( preg_match( '/^php_(?:value|flag|admin_value|admin_flag)\s/i', $line ) && ! in_array( true, $php, true ) ) {
+				$hits[] = $line;
+			}
+		}
+
+		return array_slice( array_values( array_unique( $hits ) ), 0, 3 );
+	}
+
+	/** A rewrite rule of the site's .htaccess that forbids PHP files in the plugins folder, or "". */
+	private static function blocking_rule(): string {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+
+		$file = get_home_path() . '.htaccess';
+		$text = is_readable( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		foreach ( (array) preg_split( '/\R/', $text ) as $line ) {
+			$line = trim( (string) $line );
+			if ( preg_match( '/^RewriteRule\s+(\S+)\s+-\s+\[([^\]]*)\]/i', $line, $match ) && false !== stripos( $match[1], 'plugins' ) && false !== stripos( $match[1], 'php' ) && preg_match( '/(?:^|,)\s*F\s*(?:,|$)/i', $match[2] ) ) {
+				/* translators: %s: a line of an .htaccess file, quoted. */
+				return sprintf( __( '“%s”', 'simple-storage' ), $line );
+			}
+		}
+
+		return '';
 	}
 
 	/**

@@ -139,6 +139,10 @@ final class Simple_Storage_Proxy {
 		}
 
 		$relative = rawurldecode( substr( $path, strlen( $base ) ) );
+		// No file name of the Media Library holds a control character (an encoded line break).
+		if ( preg_match( '/[\x00-\x1F\x7F]/', $relative ) ) {
+			return null;
+		}
 
 		return self::is_media_path( $relative ) ? $relative : null;
 	}
@@ -416,6 +420,8 @@ final class Simple_Storage_Proxy {
 			http_response_code( $status );
 			header( 'Content-Type: text/plain; charset=utf-8' );
 			header( 'Cache-Control: no-store' );
+			// Its own answers tell the serving diagnosis that proxy.php runs.
+			header( 'X-Simple-Storage: proxy' );
 		}
 		echo $message; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed plain-text status line.
 		exit;

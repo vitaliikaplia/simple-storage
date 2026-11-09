@@ -259,7 +259,7 @@ final class Simple_Storage_CLI {
 				WP_CLI::warning( ( '' !== (string) $extension ? '.' . $extension . ': ' : '' ) . $message );
 			}
 			if ( empty( $report['ok'] ) ) {
-				WP_CLI::error( 'Serving could not be verified.' );
+				WP_CLI::error( Simple_Storage_Delivery::explain( $report ) );
 			}
 		} else {
 			Simple_Storage_Delivery::disable();
@@ -328,7 +328,10 @@ final class Simple_Storage_CLI {
 				WP_CLI::error( (string) $job['message'] . ( $report['canAccept'] ? ' (--accept-missing)' : '' ) );
 			}
 		}
-		if ( 'done' === $job['status'] ) {
+		if ( 'done' === $job['status'] && ! empty( $job['delivery_failed'] ) ) {
+			// Switched, but the site does not serve the files yet: a finding, not a failed command.
+			WP_CLI::warning( (string) $job['message'] );
+		} elseif ( 'done' === $job['status'] ) {
 			WP_CLI::success( (string) $job['message'] );
 		} else {
 			WP_CLI::error( $job['status'] . ( '' !== $job['message'] ? ': ' . $job['message'] : '' ) );

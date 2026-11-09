@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,12 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.6.0 =
+* "Switch to the storage" for files uploaded there by hand is no longer stopped when the server does not serve them yet. It deletes nothing, so a failed check protects nothing: the switch is made, new uploads stay in WordPress until serving works, and the overview puts the problem first, with a "Check serving" button.
+* A failed serving check names its cause. The plugin asks the server for a missing file outside the year and month folders (an error there means the server refuses a line of uploads/.htaccess, and the likely lines are quoted: Options with ExecCGI, Includes or FollowSymLinks, PHP settings without their module) and for proxy.php itself (a 403 means a rule forbids PHP in the plugins folder; the rule from the site's .htaccess is quoted with the exception to add before it). While the transparent proxy cannot work, it suggests the "Directly from the storage" mode.
+* Missing files that were accepted while switching show as "missing or different", and such a job finishes "with warnings", not "with errors".
+* proxy.php refuses names with control characters (an encoded line break after a file name served the file) and marks its own answers with the X-Simple-Storage header.
 
 = 0.5.0 =
 * A clearer overview. At the top: where the site serves media from, where new uploads go and a bar of where the files are; then one suggested next step with its button, based on where the files are and which way the site is moving; the current job shows right below it.

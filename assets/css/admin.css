@@ -433,6 +433,12 @@
 	content: "✓";
 }
 
+.simple-storage .ss-phase-done.ss-phase-warn .ss-phase-label::before {
+	color: #996800;
+	content: "!";
+	font-weight: 700;
+}
+
 .simple-storage .ss-phase-current .ss-phase-label {
 	font-weight: 600;
 }
@@ -511,6 +517,14 @@
 	border-bottom: 1px solid #f0f0f1;
 	margin: 0;
 	padding: 4px 0;
+}
+
+/* Long addresses and .htaccess lines in messages wrap instead of widening the page. */
+.simple-storage .ss-log li,
+.simple-storage .ss-next-text,
+.simple-storage .ss-warnings li,
+.simple-storage [data-ss="job-message"] p {
+	overflow-wrap: anywhere;
 }
 
 .simple-storage .ss-log time {

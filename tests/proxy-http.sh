@@ -113,6 +113,9 @@ curl -s -D "$WORK/h6" -o /dev/null -H 'Range: bytes=99999999-' "$URL"
 check "$(head -1 "$WORK/h6" | cut -d' ' -f2)" "416" "a range outside the file answers 416"
 check "$(grep -i '^cache-control:' "$WORK/h6" | tr -d '\r' | cut -d' ' -f2-)" "no-store" "and nothing may keep that answer"
 check "$(grep -ci '^set-cookie:' "$WORK/h1")" "0" "cookies of the storage do not reach visitors"
+curl -s -D "$WORK/h7" -o /dev/null "$URL%0A"
+check "$(head -1 "$WORK/h7" | cut -d' ' -f2)" "404" "an encoded line break after the name is not served as the file"
+check "$(grep -i '^x-simple-storage:' "$WORK/h7" | tr -d '\r' | cut -d' ' -f2)" "proxy" "and proxy.php marks its own answers, so a diagnosis can tell them from the server's"
 mkdir -p "$STORAGE_ROOT/.fake"
 cat > "$STORAGE_ROOT/.fake/faults.json" <<FAULTS
 {"redirect": {"inner.jpg": "/$PREFIX/2024/05/remote.bin", "outer.jpg": "${STORAGE_URL/127.0.0.1/localhost}/$PREFIX/2024/05/remote.bin"}}

@@ -100,7 +100,7 @@ final class Simple_Storage_GitHub_Updater {
 			'download_link' => $remote_data['package'] ?? $this->get_package_url(),
 			'sections'      => array(
 				'description' => '<p>' . esc_html__( 'Moves WordPress media files to the Hosting Ukraine storage and back, with verification, and serves them from the storage either under their original addresses (transparent proxy) or directly.', 'simple-storage' ) . '</p>',
-				'changelog'   => '<p>' . esc_html__( 'Version 0.5.0: a clearer overview. Where the files are and how the site serves them come first, with one suggested next step; the job shows right below; the move has two views, step by step and in one go, and each step says what it would do now. Technical details of serving are under Advanced. Version 0.4.2: a "Check the copies in the storage" button compares the files the storage holds under the same names with WordPress and changes nothing else. Version 0.4.1: files uploaded to the storage by hand while their local copies are still in WordPress are checked and counted as copies.', 'simple-storage' ) . '</p>',
+				'changelog'   => '<p>' . esc_html__( 'Version 0.6.0: switching to files uploaded to the storage by hand is no longer stopped when the server does not serve them yet: the switch is made, and the overview names what the server does wrong (a line of uploads/.htaccess it refuses, a rule that forbids PHP in the plugins folder, with the exception to add) and offers to check serving again. Missing files that were accepted are no longer shown as errors. Version 0.5.0: a clearer overview, with one suggested next step and the move in two views, step by step and in one go.', 'simple-storage' ) . '</p>',
 			),
 		);
 	}

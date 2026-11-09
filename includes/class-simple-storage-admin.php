@@ -92,7 +92,11 @@ final class Simple_Storage_Admin {
 		// Serving must be proven again for the new settings before new uploads may leave. The same
 		// runs from the "Check serving" button: WordPress calls this hook only for a real change.
 		if ( Simple_Storage_Delivery::active() ) {
-			Simple_Storage_Delivery::verify_current();
+			$report = Simple_Storage_Delivery::verify_current();
+			if ( ! is_wp_error( $report ) && empty( $report['ok'] ) ) {
+				// The overview names what the server does wrong.
+				Simple_Storage_Delivery::explain( $report );
+			}
 		}
 	}
 
@@ -273,6 +277,8 @@ final class Simple_Storage_Admin {
 			'both_bytes'  => (int) $stats['both']['bytes'],
 			'remote_only' => (int) $stats['remote_only']['files'],
 			'conflicts'   => Simple_Storage_Index::report( 'conflict', 0 )['count'],
+			// Why the last serving check served nothing, while serving is on.
+			'delivery_problem' => Simple_Storage_Delivery::active() ? (string) $settings['delivery_problem'] : '',
 		);
 	}
 
@@ -296,6 +302,11 @@ final class Simple_Storage_Admin {
 		}
 		if ( empty( $s['configured'] ) ) {
 			return $step( __( 'Connect the storage first: its address, login and password go in the settings.', 'simple-storage' ), 'settings' );
+		}
+		if ( '' !== (string) ( $s['delivery_problem'] ?? '' ) ) {
+			// Visitors see no file that is only in the storage: nothing comes before that.
+			/* translators: %s: why the site does not serve the files, with what to fix. */
+			return $step( sprintf( __( 'Serving from the storage does not work yet. %s Then check serving again.', 'simple-storage' ), $s['delivery_problem'] ), 'verify', 'warning' );
 		}
 		if ( empty( $s['indexed'] ) ) {
 			return $step( __( 'Index the media files to see where they are.', 'simple-storage' ), 'index' );
@@ -404,10 +415,14 @@ final class Simple_Storage_Admin {
 
 		$phases   = array();
 		$failed   = 0;
+		$errors   = 0;
 		$measured = Simple_Storage_Jobs::measured_phases();
 		foreach ( $job['phases'] as $index => $phase ) {
 			$progress = $job['progress'][ $phase ] ?? array();
 			$failed  += (int) ( $progress['failed'] ?? 0 );
+			if ( ! in_array( $phase, Simple_Storage_Jobs::warning_phases(), true ) ) {
+				$errors += (int) ( $progress['failed'] ?? 0 );
+			}
 			$state    = $index < $job['phase'] ? 'done' : ( $index === $job['phase'] ? 'current' : 'pending' );
 			if ( 'done' === $job['status'] ) {
 				$state = 'done';
@@ -437,7 +452,8 @@ final class Simple_Storage_Admin {
 			'cancelled' => __( 'Cancelled', 'simple-storage' ),
 		);
 		if ( 'done' === $job['status'] && $failed > 0 ) {
-			$statuses['done'] = __( 'Finished with errors', 'simple-storage' );
+			// Missing files that were accepted, or a serving check that did not pass, are not errors.
+			$statuses['done'] = $errors > 0 ? __( 'Finished with errors', 'simple-storage' ) : __( 'Finished with warnings', 'simple-storage' );
 		}
 
 		return array(
@@ -570,7 +586,7 @@ final class Simple_Storage_Admin {
 			self::respond( $report );
 		}
 		if ( empty( $report['ok'] ) ) {
-			self::respond( new WP_Error( 'simple_storage_delivery_check', (string) reset( $report['failed'] ) ) );
+			self::respond( new WP_Error( 'simple_storage_delivery_check', Simple_Storage_Delivery::explain( $report ) ) );
 		}
 
 		$message = '';
@@ -651,6 +667,8 @@ final class Simple_Storage_Admin {
 			'files'            => __( 'files', 'simple-storage' ),
 			'folders'          => __( 'folders', 'simple-storage' ),
 			'failed'           => __( 'failed', 'simple-storage' ),
+			/* translators: %s: number of files. */
+			'missingOrDifferent' => __( '%s missing or different', 'simple-storage' ),
 			'current'          => __( 'Now:', 'simple-storage' ),
 			'started'          => __( 'Started:', 'simple-storage' ),
 			'finished'         => __( 'Finished:', 'simple-storage' ),

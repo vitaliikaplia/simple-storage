@@ -258,12 +258,14 @@ final class Simple_Storage_Settings {
 	 * proxy: result of the last probe for an Apache proxy (Simple_Storage_Delivery::probe_proxy()).
 	 * verified_delivery: extensions whose end-to-end serving check passed, with the settings
 	 * signature it is valid for (Simple_Storage_Delivery::verify_delivery()).
+	 * delivery_problem: why the last serving check served nothing, with what the server answers
+	 * around it (Simple_Storage_Delivery::explain()); empty once a check passes or serving is off.
 	 * last_remote_scan: number of the last complete listing of the storage, whose local files it
 	 * showed there under the same name the overview counts.
 	 * direction: "remote" or "local", where the last job the administrator started was moving the
 	 * files; the overview suggests the next step that way.
 	 *
-	 * @return array{delivery: bool, mode: string, last_test: array<string, mixed>, last_index: int, last_remote_scan: int, direction: string, proxy: array<string, mixed>, verified_delivery: array<string, mixed>}
+	 * @return array{delivery: bool, mode: string, last_test: array<string, mixed>, last_index: int, last_remote_scan: int, direction: string, proxy: array<string, mixed>, verified_delivery: array<string, mixed>, delivery_problem: string}
 	 */
 	public static function state(): array {
 		$state = get_option( self::STATE_OPTION, array() );
@@ -278,6 +280,7 @@ final class Simple_Storage_Settings {
 			'direction'  => 'local' === ( $state['direction'] ?? '' ) ? 'local' : 'remote',
 			'proxy'      => is_array( $state['proxy'] ?? null ) ? $state['proxy'] : array(),
 			'verified_delivery' => is_array( $state['verified_delivery'] ?? null ) ? $state['verified_delivery'] : array(),
+			'delivery_problem'  => is_string( $state['delivery_problem'] ?? null ) ? $state['delivery_problem'] : '',
 		);
 	}
 

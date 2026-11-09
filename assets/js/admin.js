@@ -160,6 +160,11 @@
 		action.replaceChildren();
 		if ( 'settings' === next.action ) {
 			action.appendChild( el( 'a', { className: 'button button-primary', href: config.settingsUrl, text: t.openSettings } ) );
+		} else if ( 'verify' === next.action ) {
+			// The same check as the button under Advanced; it is not a job.
+			const check = el( 'button', { type: 'button', className: 'button button-primary', 'data-ss': 'verify', text: working ? t.probing : t.verify } );
+			check.disabled = working;
+			action.appendChild( check );
 		} else if ( next.action ) {
 			action.appendChild( el( 'button', { type: 'button', className: 'button button-primary', 'data-ss-start': next.action, text: t.actions[ next.action ] || next.action } ) );
 		}
@@ -307,13 +312,15 @@
 						detail += ' / ' + phase.total_bytes;
 					}
 					if ( phase.failed ) {
-						detail += ' · ' + phase.failed + ' ' + t.failed;
+						// A comparison finds files that are missing, not files that failed.
+						detail += ' · ' + ( adopting ? t.missingOrDifferent.replace( '%s', phase.failed ) : phase.failed + ' ' + t.failed );
 					}
 					const bar = el( 'span', { className: 'ss-bar' }, [ el( 'span', { className: 'ss-bar-fill', style: 'width:' + percent( phase ) + '%' } ) ] );
 					children.push( bar, el( 'span', { className: 'ss-phase-detail', text: detail } ) );
 				}
 
-				return el( 'li', { className: 'ss-phase ss-phase-' + phase.state }, children );
+				const warn = 'done' === phase.state && phase.failed > 0 ? ' ss-phase-warn' : '';
+				return el( 'li', { className: 'ss-phase ss-phase-' + phase.state + warn }, children );
 			} )
 		);
 
