@@ -2249,6 +2249,15 @@ try {
 	$ss_listed = Simple_Storage_Index::report( 'listed_any', 0, Simple_Storage_Settings::state()['last_remote_scan'] );
 	ss_check( 3 === $ss_listed['count'] && 0 === Simple_Storage_Index::stats()['both']['files'], 'indexing counts the local files the storage has under the same name, apart from verified copies', $ss_listed );
 
+	$ss_other = hash_file( 'sha256', ss_remote( '2014/04/d.gif' ) );
+	$ss_job   = ss_run_job( 'verify_remote' );
+	$ss_count = (array) ( $ss_job['report']['counts'] ?? array() );
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && 6 === ( $ss_count['local_total'] ?? null ) && 1 === $ss_count['with_copy'] && 5 === $ss_count['uncopied'], 'checking the storage counts what has a verified copy and what has none', $ss_job['report'] ?? array() );
+	clearstatcache();
+	ss_check( ss_copied( '2014/03/doc.pdf' ) && $ss_by_hand === filemtime( ss_remote( '2014/03/doc.pdf' ) ), 'a file uploaded by hand becomes the verified copy without being uploaded again' );
+	ss_check( $ss_other === hash_file( 'sha256', ss_remote( '2014/04/d.gif' ) ) && 'x' === file_get_contents( ss_remote( '2014/03/a.jpg' ) ) && ! is_file( ss_remote( '2014/03/a-60x45.jpg' ) ), 'the check uploads nothing, not even over another file of that name' );
+	ss_check( array() === array_filter( array_keys( $ss_step ), static fn( string $p ): bool => ! is_file( $ss_uploads . '/' . $p ) ) && ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'and deletes and switches nothing' );
+
 	$ss_job = ss_run_job( 'clean_local' );
 	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_job['report']['blocked'] ?? null ), 'deleting the copies in WordPress before everything is copied deletes nothing', $ss_job['message'] ?? '' );
 	ss_check( 5 === ( $ss_job['report']['counts']['uncopied'] ?? null ) && in_array( '2014/04/d.gif', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ) && in_array( '2014/03/a.jpg', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ), 'and names the files without a verified copy', $ss_job['report'] ?? array() );

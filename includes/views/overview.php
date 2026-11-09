@@ -53,12 +53,16 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 				</tr>
 			</tbody>
 		</table>
-		<p class="description" data-ss="stat-listed-note" hidden><?php esc_html_e( 'A file of the same name in the storage counts as the copy only once its contents are checked: "Copy everything to the storage" (it uploads nothing twice), "Switch to the storage" and "Delete the copies in WordPress" do that.', 'simple-storage' ); ?></p>
+		<p class="description" data-ss="stat-listed-note" hidden><?php esc_html_e( 'A file of the same name in the storage counts as the copy only once its contents are checked: the "Check the copies in the storage" button does that and nothing else. "Copy everything to the storage", "Switch to the storage" and "Delete the copies in WordPress" check them too.', 'simple-storage' ); ?></p>
 		<p class="ss-meta">
 			<?php esc_html_e( 'Last indexed:', 'simple-storage' ); ?> <strong data-ss="indexed"></strong>
 			<span data-ss="errors-link" hidden> · <a href="#ss-errors"><?php esc_html_e( 'Errors:', 'simple-storage' ); ?> <span data-ss="stat-errors"></span></a></span>
 		</p>
-		<p><button type="button" class="button" data-ss-start="index"><?php esc_html_e( 'Index media files', 'simple-storage' ); ?></button></p>
+		<p class="ss-checks">
+			<button type="button" class="button" data-ss-start="index"><?php esc_html_e( 'Index media files', 'simple-storage' ); ?></button>
+			<button type="button" class="button" data-ss-start="verify_remote"><?php esc_html_e( 'Check the copies in the storage', 'simple-storage' ); ?></button>
+		</p>
+		<p class="description"><?php esc_html_e( 'Indexing lists what is in WordPress and in the storage. The check also compares the contents of the files the storage holds under the same names (uploaded by hand, for example) and counts them as copies; it uploads, deletes and switches nothing.', 'simple-storage' ); ?></p>
 	</section>
 
 	<section class="ss-card">

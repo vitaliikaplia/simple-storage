@@ -30,6 +30,8 @@ final class Simple_Storage_Jobs {
 		'push'         => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'upload', 'verify', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_push' ),
 		'pull'         => array( 'check', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'download', 'delete_remote', 'prune_remote', 'finish_pull' ),
 		'adopt'        => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
+		// Checks what the storage holds against WordPress; uploads, deletes and switches nothing.
+		'verify_remote' => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'verify', 'finish_verify_remote' ),
 		// Step by step: copy (never deletes), switch (never copies), delete (only a complete move).
 		'copy_remote'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'upload', 'verify', 'finish_copy_remote' ),
 		'copy_local'   => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'download', 'finish_copy_local' ),
@@ -474,7 +476,7 @@ final class Simple_Storage_Jobs {
 	/** @return bool|WP_Error */
 	private function phase_check( float $deadline ) {
 		// These depend on the public address as well: test it before anything is decided.
-		if ( in_array( $this->job['type'], array( 'push', 'adopt', 'copy_remote', 'clean_local' ), true ) ) {
+		if ( in_array( $this->job['type'], array( 'push', 'adopt', 'copy_remote', 'clean_local', 'verify_remote' ), true ) ) {
 			$report = Simple_Storage_Tester::run();
 			if ( ! $report['ok'] ) {
 				$last = end( $report['steps'] );
@@ -1263,6 +1265,31 @@ final class Simple_Storage_Jobs {
 		return true;
 	}
 
+	/**
+	 * What the check found: how many local files have a verified copy in the storage, which have
+	 * none (not there, or another file under that name) and what lives only in the storage.
+	 *
+	 * @return bool
+	 */
+	private function phase_finish_verify_remote( float $deadline ) {
+		$this->job['report'] = self::new_report( array( 'local_total', 'with_copy', 'uncopied', 'conflicts', 'only_remote' ) );
+		$this->take( 'uncopied', Simple_Storage_Index::report( 'local_uncopied', self::REPORT_SAMPLES ) );
+		$this->take( 'conflicts', Simple_Storage_Index::report( 'conflict', self::REPORT_SAMPLES ) );
+		$this->take( 'only_remote', Simple_Storage_Index::report( 'remote_only', self::REPORT_SAMPLES ) );
+
+		$counts                = &$this->job['report']['counts'];
+		$counts['local_total'] = Simple_Storage_Index::totals( array( 'local' => 1 ) )['files'] + $counts['conflicts'];
+		$counts['with_copy']   = Simple_Storage_Index::totals( array( 'local' => 1, 'remote' => 1, 'verified' => 1 ) )['files'];
+
+		$this->job['summary'] = 0 === $counts['uncopied'] + $counts['conflicts']
+			/* translators: %d: number of files. */
+			? sprintf( __( 'Checked: all %d files in WordPress have a verified copy in the storage. Nothing was uploaded, deleted or switched.', 'simple-storage' ), $counts['with_copy'] )
+			/* translators: 1: number of files, 2: number of files. */
+			: sprintf( __( 'Checked: %1$d files in WordPress have a verified copy in the storage, %2$d have none or differ from the file at the same path there; the report lists them. Nothing was uploaded, deleted or switched.', 'simple-storage' ), $counts['with_copy'], $counts['uncopied'] + $counts['conflicts'] );
+
+		return true;
+	}
+
 	/** @return bool */
 	private function phase_finish_copy_remote( float $deadline ) {
 		$left      = Simple_Storage_Index::report( 'local_uncopied', 0 )['count'];
@@ -1694,6 +1721,7 @@ final class Simple_Storage_Jobs {
 			'push'         => __( 'Transfer to the storage', 'simple-storage' ),
 			'pull'         => __( 'Return from the storage', 'simple-storage' ),
 			'adopt'        => __( 'Switching to the storage', 'simple-storage' ),
+			'verify_remote' => __( 'Checking the copies in the storage', 'simple-storage' ),
 			'copy_remote'  => __( 'Copying everything to the storage', 'simple-storage' ),
 			'copy_local'   => __( 'Copying everything to WordPress', 'simple-storage' ),
 			'switch_local' => __( 'Switching to WordPress', 'simple-storage' ),

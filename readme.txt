@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.4.1
+Stable tag: 0.4.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -40,7 +40,7 @@ In both modes a file is served from the storage only when it is missing locally,
 
 The login, password and storage address can also be defined as the `SIMPLE_STORAGE_LOGIN`, `SIMPLE_STORAGE_PASSWORD` and `SIMPLE_STORAGE_HOST` constants in `wp-config.php`; a password saved in the settings is stored encrypted with the WordPress salts.
 
-WP-CLI: `wp simple-storage status`, `test`, `index`, `push`, `pull`, `adopt`, `copy storage|wordpress`, `switch storage|wordpress`, `delete-copies wordpress|storage`, `resume`, `cancel`, `delivery on|off`.
+WP-CLI: `wp simple-storage status`, `test`, `index`, `verify`, `push`, `pull`, `adopt`, `copy storage|wordpress`, `switch storage|wordpress`, `delete-copies wordpress|storage`, `resume`, `cancel`, `delivery on|off`.
 
 For themes and plugins that work with media files themselves: `simple_storage_ensure_local( $attachment_id_or_path_or_url )` brings a file back from the storage, `simple_storage_file_exists( $path_or_url )` replaces `file_exists()` and knows files in the storage, `simple_storage_queue_offload( $path )` sends a file the code has just written to the storage at the end of the request, `simple_storage_timber_resize()` is `Timber\ImageHelper::resize()` for direct PHP calls, and the `simple_storage_attachment_files` filter adds files a theme keeps for an attachment outside its metadata.
 
@@ -63,6 +63,9 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.4.2 =
+* New: a "Check the copies in the storage" button next to indexing (WP-CLI `wp simple-storage verify`). It indexes both sides and compares the contents of the files the storage holds under the same names, uploaded by hand for example, so that they count as copies; it uploads, deletes and switches nothing, and reports how many files have a verified copy and which have none.
 
 = 0.4.1 =
 * "Switch to the storage" no longer reports an empty storage when the files were uploaded there by hand while their local copies are still in WordPress: such files are checked first (by their contents in strict mode) and then count as copies.

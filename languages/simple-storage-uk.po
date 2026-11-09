@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.4.1\n"
+"Project-Id-Version: Simple Storage 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/vitaliikaplia/simple-storage\n"
 "PO-Revision-Date: 2026-10-09 07:45+0300\n"
 "Last-Translator: Vitalii Kaplia\n"
@@ -62,7 +62,7 @@ msgstr "Огляд"
 
 #: includes/class-simple-storage-admin.php:148
 #: includes/class-simple-storage-tester.php:41
-#: includes/views/overview.php:101
+#: includes/views/overview.php:105
 msgid "Settings"
 msgstr "Налаштування"
 
@@ -124,7 +124,7 @@ msgstr "Невідома дія."
 #: includes/class-simple-storage-admin.php:389
 #: includes/class-simple-storage-client.php:44
 #: includes/class-simple-storage-delivery.php:211
-#: includes/class-simple-storage-jobs.php:91
+#: includes/class-simple-storage-jobs.php:93
 msgid "The storage connection is not configured."
 msgstr "Підключення до сховища не налаштовано."
 
@@ -444,54 +444,54 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr "Переносить медіафайли WordPress у сховище Хостинг Україна й назад, з перевіркою, і віддає їх зі сховища — або за початковими адресами (прозорий проксі), або напряму."
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.4.1: files uploaded to the storage by hand while their local copies are still in WordPress are checked and counted as copies. Version 0.4.0: a step-by-step move in either direction, for files moved by hand (FTP) or in stages. Copy everything to the storage or to WordPress without deleting anything, switch where the site serves its files from after a check that every file is there, and delete the copies on one side only when every file has a verified copy on the other. Files brought back by hand are matched by their contents. Version 0.3.5: media that do not fit on the hosting can be uploaded to the storage by hand; a new button compares them with the Media Library and connects them."
-msgstr "Версія 0.4.1: файли, залиті в сховище вручну, поки їхні локальні копії ще у WordPress, перевіряються й зараховуються як копії. Версія 0.4.0: покроковий переїзд в обидва боки — для перенесення вручну (FTP) або частинами. Можна скопіювати все в сховище чи у WordPress, нічого не видаляючи; перемкнути, звідки сайт віддає файли, після перевірки, що кожен файл на місці; і видалити копії з одного боку лише тоді, коли кожен файл має перевірену копію на іншому. Файли, повернуті вручну, звіряються за вмістом. Версія 0.3.5: файли, що не вміщаються на хостинг, можна залити в сховище вручну; нова кнопка звіряє їх із медіатекою й підключає."
+msgid "Version 0.4.2: a \"Check the copies in the storage\" button compares the files the storage holds under the same names with WordPress and changes nothing else. Version 0.4.1: files uploaded to the storage by hand while their local copies are still in WordPress are checked and counted as copies. Version 0.4.0: a step-by-step move in either direction, for files moved by hand (FTP) or in stages. Copy everything to the storage or to WordPress without deleting anything, switch where the site serves its files from after a check that every file is there, and delete the copies on one side only when every file has a verified copy on the other. Files brought back by hand are matched by their contents."
+msgstr "Версія 0.4.2: кнопка «Перевірити копії в сховищі» звіряє з WordPress файли, які сховище має під тими самими іменами, і більше нічого не змінює. Версія 0.4.1: файли, залиті в сховище вручну, поки їхні локальні копії ще у WordPress, перевіряються й зараховуються як копії. Версія 0.4.0: покроковий переїзд в обидва боки — для перенесення вручну (FTP) або частинами. Можна скопіювати все в сховище чи у WordPress, нічого не видаляючи; перемкнути, звідки сайт віддає файли, після перевірки, що кожен файл на місці; і видалити копії з одного боку лише тоді, коли кожен файл має перевірену копію на іншому. Файли, повернуті вручну, звіряються за вмістом."
 
 #: includes/class-simple-storage-index.php:242
 msgid "Name conflict: a different local file appeared where a file that lives only in the storage is recorded. Both were kept; rename or remove one of them and index again."
 msgstr "Конфлікт імен: на місці файлу, який є лише в сховищі, з’явився інший локальний файл. Обидва збережено; перейменуйте або видаліть один із них і проіндексуйте знову."
 
-#: includes/class-simple-storage-jobs.php:85
+#: includes/class-simple-storage-jobs.php:87
 msgid "Unknown job."
 msgstr "Невідома задача."
 
-#: includes/class-simple-storage-jobs.php:88
+#: includes/class-simple-storage-jobs.php:90
 msgid "Another job is not finished yet. Continue or cancel it first."
 msgstr "Інша задача ще не завершена. Спершу продовжте або скасуйте її."
 
-#: includes/class-simple-storage-jobs.php:132
+#: includes/class-simple-storage-jobs.php:134
 msgid "started."
 msgstr "розпочато."
 
-#: includes/class-simple-storage-jobs.php:146
+#: includes/class-simple-storage-jobs.php:148
 msgid "There is no paused job."
 msgstr "Немає призупиненої задачі."
 
-#: includes/class-simple-storage-jobs.php:174
+#: includes/class-simple-storage-jobs.php:176
 msgid "cancelled."
 msgstr "скасовано."
 
-#: includes/class-simple-storage-jobs.php:194
-#: includes/class-simple-storage-jobs.php:208
+#: includes/class-simple-storage-jobs.php:196
+#: includes/class-simple-storage-jobs.php:210
 msgid "There is no running job."
 msgstr "Немає задачі, що виконується."
 
-#: includes/class-simple-storage-jobs.php:199
+#: includes/class-simple-storage-jobs.php:201
 msgid "The job is already being processed in another request."
 msgstr "Задача вже виконується в іншому запиті."
 
 #. translators: 1: phase name, 2: number of files.
-#: includes/class-simple-storage-jobs.php:323
+#: includes/class-simple-storage-jobs.php:325
 #, php-format
 msgid "%1$s: %2$d files failed; see the error list."
 msgstr "%1$s: файлів з помилкою — %2$d; див. список помилок."
 
-#: includes/class-simple-storage-jobs.php:347
+#: includes/class-simple-storage-jobs.php:349
 msgid "finished."
 msgstr "завершено."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:355
+#: includes/class-simple-storage-jobs.php:357
 #, php-format
 msgid "%d file failed."
 msgid_plural "%d files failed."
@@ -500,410 +500,426 @@ msgstr[1] "%d файли з помилкою."
 msgstr[2] "%d файлів з помилкою."
 
 #. translators: %s: failed test step and its message.
-#: includes/class-simple-storage-jobs.php:485
+#: includes/class-simple-storage-jobs.php:487
 #, php-format
 msgid "Connection test failed: %s"
 msgstr "Перевірка з’єднання не вдалася: %s"
 
 #. translators: %s: database error.
-#: includes/class-simple-storage-jobs.php:563
+#: includes/class-simple-storage-jobs.php:565
 #, php-format
 msgid "The index could not be saved: %s"
 msgstr "Не вдалося зберегти індекс: %s"
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:591
+#: includes/class-simple-storage-jobs.php:593
 #, php-format
 msgid "%1$d files were left out: code and data files stay out of the public storage (filter simple_storage_excluded_file). %2$s"
 msgstr "Пропущено файлів: %1$d. Код і дані не потрапляють у публічне сховище (фільтр simple_storage_excluded_file). %2$s"
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:593
+#: includes/class-simple-storage-jobs.php:595
 #, php-format
 msgid "%1$d files were left out: their names are not valid UTF-8, so the index cannot record them. Rename them. %2$s"
 msgstr "Пропущено файлів: %1$d. Їхні імена не є коректним UTF-8, тому індекс не може їх записати. Перейменуйте їх. %2$s"
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:662
+#: includes/class-simple-storage-jobs.php:664
 #, php-format
 msgid "%d files that no longer exist were removed from the index."
 msgstr "З індексу прибрано файлів, яких більше немає: %d."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:781
+#: includes/class-simple-storage-jobs.php:783
 #, php-format
 msgid "The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting. If the files are really gone, run: wp simple-storage index --confirm-missing"
 msgstr "Тека сховища виглядає порожньою, хоча в ній записано файлів: %d. Індекс залишено без змін — перевірте налаштування теки сайту. Якщо файлів там справді вже немає, виконайте: wp simple-storage index --confirm-missing"
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:794
+#: includes/class-simple-storage-jobs.php:796
 #, php-format
 msgid "%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats. If the files are really gone, run: wp simple-storage index --confirm-missing"
 msgstr "Записаних файлів, яких немає в списку сховища: %d. Індекс залишено без змін — проіндексуйте ще раз пізніше, а якщо повториться, перевірте панель сховища. Якщо файлів там справді вже немає, виконайте: wp simple-storage index --confirm-missing"
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:834
+#: includes/class-simple-storage-jobs.php:836
 #, php-format
 msgid "%1$d files exist neither locally nor in the storage: %2$s"
 msgstr "Файлів, яких немає ні локально, ні в сховищі: %1$d — %2$s"
 
 #. translators: %s: error message.
-#: includes/class-simple-storage-jobs.php:852
+#: includes/class-simple-storage-jobs.php:854
 #, php-format
 msgid "The storage could not be read, only local files were indexed: %s"
 msgstr "Не вдалося прочитати сховище, проіндексовано лише локальні файли: %s"
 
 #. translators: %s: folder in the storage.
-#: includes/class-simple-storage-jobs.php:1020
+#: includes/class-simple-storage-jobs.php:1022
 #, php-format
 msgid "Nothing was connected: the storage has no file of the Media Library in %s. Check the folder name and the year and month structure."
 msgstr "Нічого не підключено: у %s немає жодного файлу медіатеки. Перевірте назву теки і структуру років та місяців."
 
 #. translators: 1: number of missing files, 2: number of files with another size.
-#: includes/class-simple-storage-jobs.php:1024
+#: includes/class-simple-storage-jobs.php:1026
 #, php-format
 msgid "Nothing was connected: %1$d files are missing and %2$d differ in size. Upload them and check again, or connect anyway."
 msgstr "Нічого не підключено: файлів бракує — %1$d, інший розмір — %2$d. Долийте їх і перевірте ще раз або підключіть попри це."
 
 #. translators: 1: number of files, 2: number of missing files, 3: number of files with another size.
-#: includes/class-simple-storage-jobs.php:1028
+#: includes/class-simple-storage-jobs.php:1030
 #, php-format
 msgid "Connected: the site serves %1$d files from the storage; %2$d are missing and %3$d differ in size."
 msgstr "Підключено: сайт віддає зі сховища файлів — %1$d; бракує — %2$d, інший розмір — %3$d."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1032
+#: includes/class-simple-storage-jobs.php:1034
 #, php-format
 msgid "Connected: the site serves %d files from the storage."
 msgstr "Підключено: сайт віддає зі сховища файлів — %d."
 
-#: includes/class-simple-storage-jobs.php:1272
+#. translators: %d: number of files.
+#: includes/class-simple-storage-jobs.php:1286
+#, php-format
+msgid "Checked: all %d files in WordPress have a verified copy in the storage. Nothing was uploaded, deleted or switched."
+msgstr "Перевірено: усі файли у WordPress (%d) мають перевірену копію в сховищі. Нічого не залито, не видалено й не перемкнуто."
+
+#. translators: 1: number of files, 2: number of files.
+#: includes/class-simple-storage-jobs.php:1288
+#, php-format
+msgid "Checked: %1$d files in WordPress have a verified copy in the storage, %2$d have none or differ from the file at the same path there; the report lists them. Nothing was uploaded, deleted or switched."
+msgstr "Перевірено: файлів у WordPress з перевіреною копією в сховищі — %1$d, без копії або з іншим файлом за тим самим шляхом там — %2$d; їх перелічено у звіті. Нічого не залито, не видалено й не перемкнуто."
+
+#: includes/class-simple-storage-jobs.php:1299
 msgid "Copied: every file in WordPress has a verified copy in the storage. Nothing was deleted, and the site serves its files as before."
 msgstr "Скопійовано: кожен файл у WordPress має перевірену копію в сховищі. Нічого не видалено, і сайт віддає файли, як і раніше."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1274
+#: includes/class-simple-storage-jobs.php:1301
 #, php-format
 msgid "Copied, but %d files in WordPress still have no verified copy in the storage, or differ from the file at the same path there. Nothing was deleted. Check the errors and copy again."
 msgstr "Скопійовано, але файлів у WordPress, які досі не мають перевіреної копії в сховищі або відрізняються від файлу за тим самим шляхом там: %d. Нічого не видалено. Перевірте помилки й скопіюйте ще раз."
 
-#: includes/class-simple-storage-jobs.php:1284
+#: includes/class-simple-storage-jobs.php:1311
 msgid "Copied: every file in the storage is in WordPress too. Nothing was deleted, and new uploads stay in WordPress from now on."
 msgstr "Скопійовано: кожен файл зі сховища є й у WordPress. Нічого не видалено, а нові файли відтепер лишаються у WordPress."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1286
+#: includes/class-simple-storage-jobs.php:1313
 #, php-format
 msgid "Copied, but %d files are still only in the storage, name conflicts included. Nothing was deleted. Check the errors and copy again."
 msgstr "Скопійовано, але файлів, що досі є лише в сховищі, разом із конфліктами імен: %d. Нічого не видалено. Перевірте помилки й скопіюйте ще раз."
 
-#: includes/class-simple-storage-jobs.php:1299
+#: includes/class-simple-storage-jobs.php:1326
 msgid "Nothing was switched: some files are only in the storage, or differ from the file at the same path in WordPress; the report lists them. Bring them back (or copy everything to WordPress) and check again."
 msgstr "Нічого не перемкнуто: деякі файли є лише в сховищі або відрізняються від файлу за тим самим шляхом у WordPress — їх перелічено у звіті. Поверніть їх (або скопіюйте все у WordPress) і перевірте ще раз."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1301
+#: includes/class-simple-storage-jobs.php:1328
 #, php-format
 msgid "Nothing was switched: %d files the Media Library needs are missing both in WordPress and in the storage. Upload them and check again, or switch anyway."
 msgstr "Нічого не перемкнуто: потрібних медіатеці файлів немає ні у WordPress, ні в сховищі — %d. Долийте їх і перевірте ще раз або перемкніть попри це."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1305
+#: includes/class-simple-storage-jobs.php:1332
 #, php-format
 msgid "Switched: the site serves its files from WordPress, and serving from the storage is off; %d files the Media Library needs are missing. The copies in the storage were kept."
 msgstr "Перемкнуто: сайт віддає файли з WordPress, віддачу зі сховища вимкнено; потрібних медіатеці файлів бракує — %d. Копії в сховищі збережено."
 
-#: includes/class-simple-storage-jobs.php:1306
+#: includes/class-simple-storage-jobs.php:1333
 msgid "Switched: the site serves its files from WordPress, and serving from the storage is off. The copies in the storage were kept."
 msgstr "Перемкнуто: сайт віддає файли з WordPress, віддачу зі сховища вимкнено. Копії в сховищі збережено."
 
-#: includes/class-simple-storage-jobs.php:1315
+#: includes/class-simple-storage-jobs.php:1342
 msgid "Nothing was deleted: not every file in WordPress has a verified copy in the storage; the report lists the ones that do not. Copy everything to the storage first."
 msgstr "Нічого не видалено: не кожен файл у WordPress має перевірену копію в сховищі — ті, що не мають, перелічено у звіті. Спершу скопіюйте все в сховище."
 
-#: includes/class-simple-storage-jobs.php:1323
+#: includes/class-simple-storage-jobs.php:1350
 msgid "Deleted: the site serves every file from the storage, and no copy is left in WordPress."
 msgstr "Видалено: сайт віддає кожен файл зі сховища, у WordPress копій не лишилося."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1325
+#: includes/class-simple-storage-jobs.php:1352
 #, php-format
 msgid "Deleted, but %d files stay in WordPress: serving their extension from the storage did not work, or the deletion failed. See the warnings and errors."
 msgstr "Видалено, але у WordPress лишилося файлів: %d — віддача їхнього розширення зі сховища не спрацювала або видалення не вдалося. Дивіться попередження й помилки."
 
-#: includes/class-simple-storage-jobs.php:1333
+#: includes/class-simple-storage-jobs.php:1360
 msgid "Nothing was deleted: not every file in the storage is in WordPress with the same contents; the report lists the ones that are not. Copy everything to WordPress first."
 msgstr "Нічого не видалено: не кожен файл зі сховища є у WordPress з тим самим вмістом — такі файли перелічено у звіті. Спершу скопіюйте все у WordPress."
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:1342
+#: includes/class-simple-storage-jobs.php:1369
 #, php-format
 msgid "%1$d files in the storage differ from the files at the same paths in WordPress, so they were kept. Remove them in the storage panel if nobody needs them: %2$s"
 msgstr "Файлів у сховищі, що відрізняються від файлів за тими самими шляхами у WordPress: %1$d — їх збережено. Видаліть їх у панелі сховища, якщо вони нікому не потрібні: %2$s"
 
-#: includes/class-simple-storage-jobs.php:1351
-#: includes/class-simple-storage-jobs.php:1563
+#: includes/class-simple-storage-jobs.php:1378
+#: includes/class-simple-storage-jobs.php:1590
 msgid "All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear."
 msgstr "Усі файли повернулися у WordPress. Якщо сайт працює через Cloudflare чи інший CDN, очистіть його кеш, щоб зникли закешовані переадресації на сховище."
 
-#: includes/class-simple-storage-jobs.php:1355
+#: includes/class-simple-storage-jobs.php:1382
 msgid "Deleted: the site serves every file from WordPress, and no copy is left in the storage."
 msgstr "Видалено: сайт віддає кожен файл з WordPress, у сховищі копій не лишилося."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1357
+#: includes/class-simple-storage-jobs.php:1384
 #, php-format
 msgid "Deleted, but %d copies in the storage could not be deleted. See the errors and run the job again."
 msgstr "Видалено, але копій у сховищі, які не вдалося видалити: %d. Перевірте помилки й запустіть задачу ще раз."
 
 #. translators: 1: file extension, 2: error message.
-#: includes/class-simple-storage-jobs.php:1436
+#: includes/class-simple-storage-jobs.php:1463
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage, and the site has no copy of them: %2$s"
 msgstr "Файли з розширенням .%1$s не віддаються зі сховища, а копій на сайті немає: %2$s"
 
 #. translators: 1: file extension, 2: error message.
-#: includes/class-simple-storage-jobs.php:1438
+#: includes/class-simple-storage-jobs.php:1465
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage and stay local: %2$s"
 msgstr "Файли з розширенням .%1$s не віддаються зі сховища й лишаються на сайті: %2$s"
 
-#: includes/class-simple-storage-jobs.php:1455
+#: includes/class-simple-storage-jobs.php:1482
 msgid "Serving from the storage is off, so local copies were kept."
 msgstr "Віддачу зі сховища вимкнено, тому локальні копії збережено."
 
 #. translators: %s: file extension.
-#: includes/class-simple-storage-jobs.php:1468
+#: includes/class-simple-storage-jobs.php:1495
 #, php-format
 msgid "Serving .%s files from the storage is not verified, so the local file was kept."
 msgstr "Віддачу файлів .%s зі сховища не перевірено, тому локальний файл збережено."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1484
+#: includes/class-simple-storage-jobs.php:1511
 #, php-format
 msgid "%d files are still stored locally; run the transfer again after checking the errors."
 msgstr "Файлів, що досі зберігаються локально: %d. Перевірте помилки й запустіть перенесення ще раз."
 
 #. translators: 1: required size, 2: free size.
-#: includes/class-simple-storage-jobs.php:1504
+#: includes/class-simple-storage-jobs.php:1531
 #, php-format
 msgid "Not enough disk space: %1$s is needed, %2$s is free."
 msgstr "Недостатньо місця на диску: потрібно %1$s, вільно %2$s."
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1566
+#: includes/class-simple-storage-jobs.php:1593
 #, php-format
 msgid "%d files are still only in the storage, name conflicts included, so serving from the storage stays on. Check the errors and run the transfer again."
 msgstr "Файлів, що досі є лише в сховищі, разом із конфліктами імен: %d, тому віддача зі сховища лишається ввімкненою. Перевірте помилки й запустіть перенесення ще раз."
 
-#: includes/class-simple-storage-jobs.php:1678
+#: includes/class-simple-storage-jobs.php:1705
 msgid "The job lock was lost; the work will be done again later."
 msgstr "Блокування задач втрачено; роботу буде виконано пізніше."
 
-#: includes/class-simple-storage-jobs.php:1693
+#: includes/class-simple-storage-jobs.php:1720
 msgid "Indexing"
 msgstr "Індексування"
 
-#: includes/class-simple-storage-jobs.php:1694
+#: includes/class-simple-storage-jobs.php:1721
 msgid "Transfer to the storage"
 msgstr "Перенесення в сховище"
 
-#: includes/class-simple-storage-jobs.php:1695
+#: includes/class-simple-storage-jobs.php:1722
 msgid "Return from the storage"
 msgstr "Повернення зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1696
+#: includes/class-simple-storage-jobs.php:1723
 msgid "Switching to the storage"
 msgstr "Перемикання на сховище"
 
-#: includes/class-simple-storage-jobs.php:1697
+#: includes/class-simple-storage-jobs.php:1724
+msgid "Checking the copies in the storage"
+msgstr "Перевірка копій у сховищі"
+
+#: includes/class-simple-storage-jobs.php:1725
 msgid "Copying everything to the storage"
 msgstr "Копіювання всього в сховище"
 
-#: includes/class-simple-storage-jobs.php:1698
+#: includes/class-simple-storage-jobs.php:1726
 msgid "Copying everything to WordPress"
 msgstr "Копіювання всього у WordPress"
 
-#: includes/class-simple-storage-jobs.php:1699
+#: includes/class-simple-storage-jobs.php:1727
 msgid "Switching to WordPress"
 msgstr "Перемикання на WordPress"
 
-#: includes/class-simple-storage-jobs.php:1700
+#: includes/class-simple-storage-jobs.php:1728
 msgid "Deleting the copies in WordPress"
 msgstr "Видалення копій у WordPress"
 
-#: includes/class-simple-storage-jobs.php:1701
+#: includes/class-simple-storage-jobs.php:1729
 msgid "Deleting the copies in the storage"
 msgstr "Видалення копій у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1709
+#: includes/class-simple-storage-jobs.php:1737
 msgid "Connection check"
 msgstr "Перевірка з’єднання"
 
-#: includes/class-simple-storage-jobs.php:1710
+#: includes/class-simple-storage-jobs.php:1738
 msgid "Finding media folders"
 msgstr "Пошук медіатек"
 
-#: includes/class-simple-storage-jobs.php:1711
+#: includes/class-simple-storage-jobs.php:1739
 msgid "Indexing local files"
 msgstr "Індексування локальних файлів"
 
-#: includes/class-simple-storage-jobs.php:1712
+#: includes/class-simple-storage-jobs.php:1740
 msgid "Updating the index"
 msgstr "Оновлення індексу"
 
-#: includes/class-simple-storage-jobs.php:1713
+#: includes/class-simple-storage-jobs.php:1741
 msgid "Finding folders in the storage"
 msgstr "Пошук тек у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1714
+#: includes/class-simple-storage-jobs.php:1742
 msgid "Indexing files in the storage"
 msgstr "Індексування файлів у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1715
+#: includes/class-simple-storage-jobs.php:1743
 msgid "Reconciling the index"
 msgstr "Звірка індексу"
 
-#: includes/class-simple-storage-jobs.php:1716
+#: includes/class-simple-storage-jobs.php:1744
 msgid "Copying to the storage"
 msgstr "Копіювання в сховище"
 
-#: includes/class-simple-storage-jobs.php:1717
+#: includes/class-simple-storage-jobs.php:1745
 msgid "Verifying copies"
 msgstr "Перевірка копій"
 
-#: includes/class-simple-storage-jobs.php:1718
+#: includes/class-simple-storage-jobs.php:1746
 msgid "Enabling serving from the storage"
 msgstr "Увімкнення віддачі зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1719
+#: includes/class-simple-storage-jobs.php:1747
 msgid "Checking serving from the storage"
 msgstr "Перевірка віддачі зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1720
+#: includes/class-simple-storage-jobs.php:1748
 msgid "Deleting local copies"
 msgstr "Видалення локальних копій"
 
-#: includes/class-simple-storage-jobs.php:1721
-#: includes/class-simple-storage-jobs.php:1725
-#: includes/class-simple-storage-jobs.php:1727
-#: includes/class-simple-storage-jobs.php:1736
+#: includes/class-simple-storage-jobs.php:1749
+#: includes/class-simple-storage-jobs.php:1753
+#: includes/class-simple-storage-jobs.php:1755
+#: includes/class-simple-storage-jobs.php:1764
 msgid "Finishing"
 msgstr "Завершення"
 
-#: includes/class-simple-storage-jobs.php:1722
+#: includes/class-simple-storage-jobs.php:1750
 msgid "Downloading to WordPress"
 msgstr "Завантаження у WordPress"
 
-#: includes/class-simple-storage-jobs.php:1723
+#: includes/class-simple-storage-jobs.php:1751
 msgid "Deleting copies in the storage"
 msgstr "Видалення копій у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1724
+#: includes/class-simple-storage-jobs.php:1752
 msgid "Removing empty storage folders"
 msgstr "Видалення порожніх тек у сховищі"
 
-#: includes/class-simple-storage-jobs.php:1726
+#: includes/class-simple-storage-jobs.php:1754
 msgid "Comparing with the Media Library"
 msgstr "Звірка з медіатекою"
 
-#: includes/class-simple-storage-jobs.php:1728
+#: includes/class-simple-storage-jobs.php:1756
 msgid "Matching files at the same paths"
 msgstr "Звірка однойменних файлів"
 
-#: includes/class-simple-storage-jobs.php:1729
+#: includes/class-simple-storage-jobs.php:1757
 msgid "Checking copies already in the storage"
 msgstr "Перевірка копій, що вже є в сховищі"
 
-#: includes/class-simple-storage-jobs.php:1730
+#: includes/class-simple-storage-jobs.php:1758
 msgid "Comparing the Media Library with the site disk"
 msgstr "Звірка медіатеки з диском сайту"
 
-#: includes/class-simple-storage-jobs.php:1731
+#: includes/class-simple-storage-jobs.php:1759
 msgid "Turning off serving from the storage"
 msgstr "Вимкнення віддачі зі сховища"
 
-#: includes/class-simple-storage-jobs.php:1732
+#: includes/class-simple-storage-jobs.php:1760
 msgid "Checking that every file has a copy in the storage"
 msgstr "Перевірка, що кожен файл має копію в сховищі"
 
-#: includes/class-simple-storage-jobs.php:1733
+#: includes/class-simple-storage-jobs.php:1761
 msgid "Checking that every file is in WordPress"
 msgstr "Перевірка, що кожен файл є у WordPress"
 
-#: includes/class-simple-storage-jobs.php:1757
+#: includes/class-simple-storage-jobs.php:1785
 msgid "Attachments checked:"
 msgstr "Перевірено вкладень:"
 
-#: includes/class-simple-storage-jobs.php:1758
+#: includes/class-simple-storage-jobs.php:1786
 msgid "Files they need:"
 msgstr "Потрібно файлів:"
 
-#: includes/class-simple-storage-jobs.php:1759
+#: includes/class-simple-storage-jobs.php:1787
 msgid "In the storage:"
 msgstr "У сховищі:"
 
-#: includes/class-simple-storage-jobs.php:1760
+#: includes/class-simple-storage-jobs.php:1788
 msgid "On the site disk:"
 msgstr "На диску сайту:"
 
-#: includes/class-simple-storage-jobs.php:1761
+#: includes/class-simple-storage-jobs.php:1789
 msgid "Missing:"
 msgstr "Бракує:"
 
-#: includes/class-simple-storage-jobs.php:1762
+#: includes/class-simple-storage-jobs.php:1790
 msgid "Different size (image optimizers can cause this):"
 msgstr "Інший розмір (таке буває після оптимізаторів зображень):"
 
-#: includes/class-simple-storage-jobs.php:1763
+#: includes/class-simple-storage-jobs.php:1791
 msgid "Missing outside the year and month folders (these belong on the site disk):"
 msgstr "Бракує поза теками років і місяців (такі файли мають бути на диску сайту):"
 
-#: includes/class-simple-storage-jobs.php:1764
+#: includes/class-simple-storage-jobs.php:1792
 msgid "In the storage without an attachment (theme copies, leftovers):"
 msgstr "У сховищі без вкладення (копії теми, залишки):"
 
-#: includes/class-simple-storage-jobs.php:1765
+#: includes/class-simple-storage-jobs.php:1793
 msgid "Only in the storage:"
 msgstr "Лише в сховищі:"
 
-#: includes/class-simple-storage-jobs.php:1766
+#: includes/class-simple-storage-jobs.php:1794
 msgid "A different file at the same path on the other side:"
 msgstr "Інший файл за тим самим шляхом на іншому боці:"
 
-#: includes/class-simple-storage-jobs.php:1767
+#: includes/class-simple-storage-jobs.php:1795
 msgid "Files in WordPress:"
 msgstr "Файлів у WordPress:"
 
-#: includes/class-simple-storage-jobs.php:1768
+#: includes/class-simple-storage-jobs.php:1796
 msgid "With a verified copy in the storage:"
 msgstr "З перевіреною копією в сховищі:"
 
-#: includes/class-simple-storage-jobs.php:1769
+#: includes/class-simple-storage-jobs.php:1797
 msgid "Without a verified copy in the storage:"
 msgstr "Без перевіреної копії в сховищі:"
 
-#: includes/class-simple-storage-jobs.php:1770
+#: includes/class-simple-storage-jobs.php:1798
 msgid "Files in the storage:"
 msgstr "Файлів у сховищі:"
 
-#: includes/class-simple-storage-jobs.php:1771
+#: includes/class-simple-storage-jobs.php:1799
 msgid "The same file in WordPress:"
 msgstr "Той самий файл є у WordPress:"
 
-#: includes/class-simple-storage-jobs.php:1817
+#: includes/class-simple-storage-jobs.php:1845
 msgid "Connect anyway"
 msgstr "Усе одно підключити"
 
-#: includes/class-simple-storage-jobs.php:1817
+#: includes/class-simple-storage-jobs.php:1845
 msgid "Switch anyway"
 msgstr "Усе одно перемкнути"
 
-#: includes/class-simple-storage-jobs.php:1819
+#: includes/class-simple-storage-jobs.php:1847
 msgid "The site will serve what the storage has. Files that are missing stay broken until they are uploaded.\n\nConnect anyway?"
 msgstr "Сайт віддаватиме те, що є в сховищі. Відсутні файли не показуватимуться, доки їх не зальють.\n\nУсе одно підключити?"
 
-#: includes/class-simple-storage-jobs.php:1820
+#: includes/class-simple-storage-jobs.php:1848
 msgid "The site will serve its files from WordPress. Files that are missing stay broken until they are uploaded.\n\nSwitch anyway?"
 msgstr "Сайт віддаватиме файли з WordPress. Відсутні файли не показуватимуться, доки їх не зальють.\n\nУсе одно перемкнути?"
 
@@ -1116,7 +1132,7 @@ msgid "Clear the log"
 msgstr "Очистити журнал"
 
 #: includes/views/log.php:45
-#: includes/views/overview.php:186
+#: includes/views/overview.php:190
 msgid "Files with errors"
 msgstr "Файли з помилками"
 
@@ -1125,12 +1141,12 @@ msgid "File"
 msgstr "Файл"
 
 #: includes/views/log.php:66
-#: includes/views/overview.php:188
+#: includes/views/overview.php:192
 msgid "Clear the error list"
 msgstr "Очистити список помилок"
 
 #: includes/views/log.php:67
-#: includes/views/overview.php:189
+#: includes/views/overview.php:193
 msgid "A name conflict stays on the list until one of the two files is renamed or removed and the files are indexed again."
 msgstr "Конфлікт імен лишається в списку, доки один із двох файлів не перейменують або не видалять і не проіндексують файли знову."
 
@@ -1171,8 +1187,8 @@ msgid "Only in the storage"
 msgstr "Лише в сховищі"
 
 #: includes/views/overview.php:56
-msgid "A file of the same name in the storage counts as the copy only once its contents are checked: \"Copy everything to the storage\" (it uploads nothing twice), \"Switch to the storage\" and \"Delete the copies in WordPress\" do that."
-msgstr "Файл із тим самим ім’ям у сховищі стає копією лише після перевірки вмісту: це роблять «Скопіювати все в сховище» (нічого не заливає вдруге), «Перемкнути на сховище» й «Видалити копії у WordPress»."
+msgid "A file of the same name in the storage counts as the copy only once its contents are checked: the \"Check the copies in the storage\" button does that and nothing else. \"Copy everything to the storage\", \"Switch to the storage\" and \"Delete the copies in WordPress\" check them too."
+msgstr "Файл із тим самим ім’ям у сховищі стає копією лише після перевірки вмісту: це робить кнопка «Перевірити копії в сховищі» — і нічого більше. Перевіряють їх і «Скопіювати все в сховище», «Перемкнути на сховище» та «Видалити копії у WordPress»."
 
 #: includes/views/overview.php:58
 msgid "Last indexed:"
@@ -1182,131 +1198,139 @@ msgstr "Останнє індексування:"
 msgid "Errors:"
 msgstr "Помилок:"
 
-#: includes/views/overview.php:61
+#: includes/views/overview.php:62
 msgid "Index media files"
 msgstr "Проіндексувати медіафайли"
 
+#: includes/views/overview.php:63
+msgid "Check the copies in the storage"
+msgstr "Перевірити копії в сховищі"
+
 #: includes/views/overview.php:65
+msgid "Indexing lists what is in WordPress and in the storage. The check also compares the contents of the files the storage holds under the same names (uploaded by hand, for example) and counts them as copies; it uploads, deletes and switches nothing."
+msgstr "Індексація складає список того, що є у WordPress і в сховищі. Перевірка ще й звіряє вміст файлів, які сховище має під тими самими іменами (наприклад, залитих вручну), і зараховує їх як копії; вона нічого не заливає, не видаляє й не перемикає."
+
+#: includes/views/overview.php:69
 msgid "Storage"
 msgstr "Сховище"
 
-#: includes/views/overview.php:69
+#: includes/views/overview.php:73
 msgid "Connection"
 msgstr "З’єднання"
 
-#: includes/views/overview.php:73
+#: includes/views/overview.php:77
 #: includes/views/settings.php:29
 msgid "Storage address"
 msgstr "Адреса сховища"
 
-#: includes/views/overview.php:77
+#: includes/views/overview.php:81
 msgid "Files are served from"
 msgstr "Файли віддаються з"
 
-#: includes/views/overview.php:81
+#: includes/views/overview.php:85
 msgid "Serving from the storage"
 msgstr "Віддача зі сховища"
 
-#: includes/views/overview.php:94
+#: includes/views/overview.php:98
 #: includes/views/settings.php:114
 msgid "New uploads"
 msgstr "Нові файли"
 
-#: includes/views/overview.php:107
+#: includes/views/overview.php:111
 msgid "Transfer"
 msgstr "Перенесення"
 
-#: includes/views/overview.php:110
+#: includes/views/overview.php:114
 msgid "Move everything to the storage"
 msgstr "Перенести все в сховище"
 
-#: includes/views/overview.php:111
+#: includes/views/overview.php:115
 msgid "Copy → verify → enable serving from the storage → delete local copies. A local file is deleted only after its copy in the storage has been verified."
 msgstr "Копіювання → перевірка → увімкнення віддачі зі сховища → видалення локальних копій. Локальний файл видаляється лише після перевірки його копії в сховищі."
 
-#: includes/views/overview.php:114
+#: includes/views/overview.php:118
 msgid "Return everything to WordPress"
 msgstr "Повернути все у WordPress"
 
-#: includes/views/overview.php:115
+#: includes/views/overview.php:119
 msgid "Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads."
 msgstr "Завантаження → перевірка → видалення зі сховища → вимкнення віддачі зі сховища. У результаті — звичайний WordPress з усіма медіафайлами в uploads."
 
-#: includes/views/overview.php:121
+#: includes/views/overview.php:125
 msgid "Step by step"
 msgstr "Покроково"
 
-#: includes/views/overview.php:122
+#: includes/views/overview.php:126
 msgid "For a move done by hand or in stages, and for a site whose files are partly in WordPress and partly in the storage. Copying never deletes anything. Switching copies nothing: it checks the files and changes where the site serves them from. Deleting happens only when every file has a verified copy on the other side; otherwise nothing is deleted and the job names what is missing."
 msgstr "Для переїзду вручну або частинами, а також для сайту, чиї файли лежать частково у WordPress, частково в сховищі. Копіювання нічого не видаляє. Перемикання нічого не копіює: воно перевіряє файли й змінює, звідки сайт їх віддає. Видалення відбувається лише тоді, коли кожен файл має перевірену копію на іншому боці; інакше нічого не видаляється, а задача називає, чого бракує."
 
 #. translators: 1: folder in the storage, 2: example path.
-#: includes/views/overview.php:127
+#: includes/views/overview.php:131
 #, php-format
 msgid "Step 1 can also be done by hand (FTP), for example for media that do not fit on the hosting: copy the year and month folders of uploads to %1$s (as in %2$s), or from there back into uploads, then continue with step 2."
 msgstr "Крок 1 можна зробити й вручну (FTP), наприклад для файлів, що не вміщаються на хостинг: скопіюйте теки років і місяців з uploads у %1$s (як-от %2$s) або звідти назад в uploads, а тоді переходьте до кроку 2."
 
-#: includes/views/overview.php:135
+#: includes/views/overview.php:139
 msgid "To the storage"
 msgstr "До сховища"
 
-#: includes/views/overview.php:138
+#: includes/views/overview.php:142
 msgid "Copy everything to the storage"
 msgstr "Скопіювати все в сховище"
 
-#: includes/views/overview.php:139
+#: includes/views/overview.php:143
 msgid "Uploads what is only in WordPress and verifies every copy; files already in the storage (uploaded by hand) are verified, not uploaded again. Nothing is deleted."
 msgstr "Заливає те, що є лише у WordPress, і перевіряє кожну копію; файли, які вже є в сховищі (залиті вручну), перевіряються, а не заливаються вдруге. Нічого не видаляється."
 
-#: includes/views/overview.php:142
+#: includes/views/overview.php:146
 msgid "Switch to the storage"
 msgstr "Перемкнути на сховище"
 
-#: includes/views/overview.php:143
+#: includes/views/overview.php:147
 msgid "Compares the storage with the Media Library and, when nothing is missing, turns on serving from the storage; new uploads follow there. Nothing is copied or deleted."
 msgstr "Звіряє сховище з медіатекою і, якщо все на місці, вмикає віддачу зі сховища; нові файли теж ітимуть туди. Нічого не копіюється й не видаляється."
 
-#: includes/views/overview.php:146
+#: includes/views/overview.php:150
 msgid "Delete the copies in WordPress"
 msgstr "Видалити копії у WordPress"
 
-#: includes/views/overview.php:147
+#: includes/views/overview.php:151
 msgid "Frees the hosting disk. Only if every local file has a verified copy in the storage: then serving from the storage is turned on and checked, and the local copies are deleted."
 msgstr "Звільняє диск хостингу. Лише якщо кожен локальний файл має перевірену копію в сховищі: тоді вмикається й перевіряється віддача зі сховища, а локальні копії видаляються."
 
-#: includes/views/overview.php:152
+#: includes/views/overview.php:156
 msgid "To WordPress"
 msgstr "До WordPress"
 
-#: includes/views/overview.php:155
+#: includes/views/overview.php:159
 msgid "Copy everything to WordPress"
 msgstr "Скопіювати все у WordPress"
 
-#: includes/views/overview.php:156
+#: includes/views/overview.php:160
 msgid "Downloads what is only in the storage and verifies every file; new uploads stay in WordPress from now on. Nothing is deleted."
 msgstr "Скачує те, що є лише в сховищі, і перевіряє кожен файл; нові файли відтепер лишаються у WordPress. Нічого не видаляється."
 
-#: includes/views/overview.php:159
+#: includes/views/overview.php:163
 msgid "Switch to WordPress"
 msgstr "Перемкнути на WordPress"
 
-#: includes/views/overview.php:160
+#: includes/views/overview.php:164
 msgid "For files brought back by hand: checks that every file in the storage and every file of the Media Library is in WordPress, then turns serving from the storage off. Nothing is copied or deleted."
 msgstr "Для файлів, повернутих вручну: перевіряє, що кожен файл зі сховища й кожен файл медіатеки є у WordPress, і вимикає віддачу зі сховища. Нічого не копіюється й не видаляється."
 
-#: includes/views/overview.php:163
+#: includes/views/overview.php:167
 msgid "Delete the copies in the storage"
 msgstr "Видалити копії в сховищі"
 
-#: includes/views/overview.php:164
+#: includes/views/overview.php:168
 msgid "Frees the storage. Only if every file in the storage is in WordPress too, with the same contents: then the copies in the storage are deleted and serving from it is turned off."
 msgstr "Звільняє сховище. Лише якщо кожен файл зі сховища є й у WordPress з тим самим вмістом: тоді копії в сховищі видаляються, а віддача з нього вимикається."
 
-#: includes/views/overview.php:193
+#: includes/views/overview.php:197
 msgid "Recent events"
 msgstr "Останні події"
 
-#: includes/views/overview.php:195
+#: includes/views/overview.php:199
 msgid "Full log"
 msgstr "Увесь журнал"
 

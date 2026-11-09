@@ -111,6 +111,18 @@ final class Simple_Storage_CLI {
 	}
 
 	/**
+	 * Check the copies in the storage; nothing is uploaded, deleted or switched.
+	 *
+	 * Indexes both sides and compares the contents of the files the storage holds under the same
+	 * names (uploaded by hand, for example), so that they count as copies.
+	 *
+	 * @when after_wp_load
+	 */
+	public function verify(): void {
+		$this->run_job( 'verify_remote' );
+	}
+
+	/**
 	 * Copy every file to one side; nothing is deleted.
 	 *
 	 * What is only in WordPress goes to the storage, or what is only in the storage comes into
