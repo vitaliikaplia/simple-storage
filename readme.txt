@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.4.2
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,12 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.5.0 =
+* A clearer overview. At the top: where the site serves media from, where new uploads go and a bar of where the files are; then one suggested next step with its button, based on where the files are and which way the site is moving; the current job shows right below it.
+* "Move" brings the one-click transfer and the step-by-step move together, as two views; next to each step a short note says what it would do now (how many files it would copy, "Already so", "After step 1", how much it would free).
+* Storage and serving details are in a compact card; the probe, the serving check and the manual serving switch are under "Advanced", away from the steps that check before they act. Files with errors show only when there are any.
+* A file the storage holds under the same name and size but with other contents is named in the error list after a check, instead of being offered for checking again.
 
 = 0.4.2 =
 * New: a "Check the copies in the storage" button next to indexing (WP-CLI `wp simple-storage verify`). It indexes both sides and compares the contents of the files the storage holds under the same names, uploaded by hand for example, so that they count as copies; it uploads, deletes and switches nothing, and reports how many files have a verified copy and which have none.

@@ -260,8 +260,10 @@ final class Simple_Storage_Settings {
 	 * signature it is valid for (Simple_Storage_Delivery::verify_delivery()).
 	 * last_remote_scan: number of the last complete listing of the storage, whose local files it
 	 * showed there under the same name the overview counts.
+	 * direction: "remote" or "local", where the last job the administrator started was moving the
+	 * files; the overview suggests the next step that way.
 	 *
-	 * @return array{delivery: bool, mode: string, last_test: array<string, mixed>, last_index: int, last_remote_scan: int, proxy: array<string, mixed>, verified_delivery: array<string, mixed>}
+	 * @return array{delivery: bool, mode: string, last_test: array<string, mixed>, last_index: int, last_remote_scan: int, direction: string, proxy: array<string, mixed>, verified_delivery: array<string, mixed>}
 	 */
 	public static function state(): array {
 		$state = get_option( self::STATE_OPTION, array() );
@@ -273,6 +275,7 @@ final class Simple_Storage_Settings {
 			'last_test'  => is_array( $state['last_test'] ?? null ) ? $state['last_test'] : array(),
 			'last_index' => (int) ( $state['last_index'] ?? 0 ),
 			'last_remote_scan' => (int) ( $state['last_remote_scan'] ?? 0 ),
+			'direction'  => 'local' === ( $state['direction'] ?? '' ) ? 'local' : 'remote',
 			'proxy'      => is_array( $state['proxy'] ?? null ) ? $state['proxy'] : array(),
 			'verified_delivery' => is_array( $state['verified_delivery'] ?? null ) ? $state['verified_delivery'] : array(),
 		);

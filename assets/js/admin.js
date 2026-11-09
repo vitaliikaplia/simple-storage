@@ -10,6 +10,8 @@
 	const t = config.i18n;
 	let state = config.state;
 	let running = false;
+	// The job and status the stages were last opened or closed for: a finished job folds them.
+	let foldedFor = '';
 	// A serving check or a switch of serving is under way: it can take a good while.
 	let working = false;
 
@@ -101,6 +103,84 @@
 		if ( errorsLink ) {
 			errorsLink.hidden = '0' === String( stats.errors );
 		}
+
+		// The bar of where the files are, by size (by count while all files are empty).
+		const bytes = stats.bytes;
+		const parts = {
+			local_only: Math.max( 0, bytes.local_only - bytes.listed ),
+			listed: bytes.listed,
+			both: bytes.both,
+			remote_only: bytes.remote_only,
+		};
+		let sum = Object.values( parts ).reduce( ( a, b ) => a + b, 0 );
+		if ( ! sum ) {
+			parts.local_only = Math.max( 0, stats.raw.local_only - stats.raw.listed );
+			parts.listed = stats.raw.listed;
+			parts.both = stats.raw.both;
+			parts.remote_only = stats.raw.remote_only;
+			sum = Object.values( parts ).reduce( ( a, b ) => a + b, 0 );
+		}
+		const spread = $( 'spread' );
+		if ( spread ) {
+			spread.hidden = ! sum;
+		}
+		Object.entries( parts ).forEach( ( [ key, value ] ) => {
+			const segment = $( 'spread-' + key );
+			if ( segment ) {
+				segment.style.width = sum ? ( ( value / sum ) * 100 ).toFixed( 2 ) + '%' : '0';
+			}
+		} );
+	}
+
+	/** The facts at the top: where media are served from, where new uploads go. */
+	function renderFacts() {
+		setText( 'fact-source', state.delivery ? t.factStorage : t.factWordPress );
+		setText( 'fact-source-note', state.delivery ? ( 'direct' === state.deliveryMode ? t.modeDirect : t.modeProxy ) + '; ' + t.factLocalFirst : '' );
+		let uploads = t.uploadsLocal;
+		if ( state.auto ) {
+			uploads = state.autoHeld ? t.uploadsHeld : t.uploadsStorage;
+		}
+		setText( 'fact-uploads', uploads );
+	}
+
+	/** The one suggested next step, with the button that starts it. */
+	function renderNext() {
+		const box = $( 'next' );
+		if ( ! box ) {
+			return;
+		}
+		const next = state.next;
+		box.hidden = ! next;
+		if ( ! next ) {
+			return;
+		}
+		box.className = 'ss-card ss-next ss-next-' + next.tone;
+		setText( 'next-text', next.text );
+		const action = $( 'next-action' );
+		action.replaceChildren();
+		if ( 'settings' === next.action ) {
+			action.appendChild( el( 'a', { className: 'button button-primary', href: config.settingsUrl, text: t.openSettings } ) );
+		} else if ( next.action ) {
+			action.appendChild( el( 'button', { type: 'button', className: 'button button-primary', 'data-ss-start': next.action, text: t.actions[ next.action ] || next.action } ) );
+		}
+		action.hidden = ! next.action;
+	}
+
+	/** What each step-by-step button would do now. */
+	function renderChips() {
+		$$( '[data-ss-chip]' ).forEach( ( node ) => {
+			const chip = state.chips[ node.getAttribute( 'data-ss-chip' ) ];
+			node.textContent = chip ? chip.text : '';
+			node.className = 'ss-chip' + ( chip ? ' ss-chip-' + chip.tone : '' );
+		} );
+	}
+
+	/** Step by step or in one go: the choice is remembered in this browser. */
+	function showView( view ) {
+		$$( '[data-ss-view]' ).forEach( ( button ) => button.setAttribute( 'aria-pressed', String( button.getAttribute( 'data-ss-view' ) === view ) ) );
+		$$( '[data-ss-pane]' ).forEach( ( pane ) => {
+			pane.hidden = pane.getAttribute( 'data-ss-pane' ) !== view;
+		} );
 	}
 
 	function renderStorage() {
@@ -206,6 +286,13 @@
 
 		setText( 'job-meta', t.started + ' ' + job.started + ( job.finished ? ' · ' + t.finished + ' ' + job.finished : '' ) );
 
+		const stages = $( 'job-phases-wrap' );
+		const foldKey = job.type + '|' + job.started + '|' + job.status;
+		if ( stages && foldKey !== foldedFor ) {
+			foldedFor = foldKey;
+			stages.open = [ 'running', 'paused', 'failed' ].includes( job.status );
+		}
+
 		$( 'job-phases' ).replaceChildren(
 			...job.phases.map( ( phase ) => {
 				const adopting = 'adopt_compare' === phase.key || 'local_compare' === phase.key;
@@ -301,6 +388,10 @@
 		if ( ! box ) {
 			return;
 		}
+		const card = $( 'errors-card' );
+		if ( card ) {
+			card.hidden = ! state.errors.length;
+		}
 		if ( ! state.errors.length ) {
 			box.replaceChildren( el( 'p', { text: t.noErrors } ) );
 			return;
@@ -325,7 +416,7 @@
 			el(
 				'ul',
 				{ className: 'ss-log' },
-				state.log.map( ( entry ) =>
+				state.log.slice( 0, $( 'job' ) ? 6 : state.log.length ).map( ( entry ) =>
 					el( 'li', { className: 'ss-level-' + entry.level }, [ el( 'time', { text: entry.time } ), document.createTextNode( ' ' + entry.message ) ] )
 				)
 			)
@@ -333,6 +424,8 @@
 	}
 
 	function render() {
+		renderNext();
+		renderChips();
 		const active = state.job && [ 'running', 'paused', 'failed' ].includes( state.job.status );
 		$$( '[data-ss-start]' ).forEach( ( button ) => {
 			const needsStorage = 'index' !== button.getAttribute( 'data-ss-start' );
@@ -340,6 +433,7 @@
 		} );
 
 		renderStats();
+		renderFacts();
 		renderStorage();
 		renderJob();
 		renderErrors();
@@ -513,6 +607,12 @@
 		} else if ( ( target.hasAttribute( 'data-ss-again' ) || target.hasAttribute( 'data-ss-accept' ) ) && state.job ) {
 			// The same job once more: after the missing files were uploaded, or accepting them.
 			start( state.job.type, target.hasAttribute( 'data-ss-accept' ) );
+		} else if ( target.hasAttribute( 'data-ss-view' ) ) {
+			const view = target.getAttribute( 'data-ss-view' );
+			showView( view );
+			try {
+				window.localStorage.setItem( 'simple-storage-move-view', view );
+			} catch ( ignored ) {}
 		} else if ( 'delivery-toggle' === target.getAttribute( 'data-ss' ) ) {
 			toggleDelivery( target );
 		} else if ( 'test' === target.getAttribute( 'data-ss' ) ) {
@@ -535,6 +635,13 @@
 		}
 	} );
 
+	if ( $( 'job' ) ) {
+		let view = 'steps';
+		try {
+			view = 'oneclick' === window.localStorage.getItem( 'simple-storage-move-view' ) ? 'oneclick' : 'steps';
+		} catch ( ignored ) {}
+		showView( view );
+	}
 	render();
 	if ( $( 'job' ) && state.job && 'running' === state.job.status ) {
 		loop();

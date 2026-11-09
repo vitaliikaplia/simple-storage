@@ -122,6 +122,21 @@ final class Simple_Storage_Jobs {
 			'finished_at' => 0,
 		);
 
+		// Which way the site is moving: the overview suggests the next step in that direction.
+		$towards = array(
+			'push'         => 'remote',
+			'copy_remote'  => 'remote',
+			'adopt'        => 'remote',
+			'clean_local'  => 'remote',
+			'pull'         => 'local',
+			'copy_local'   => 'local',
+			'switch_local' => 'local',
+			'clean_remote' => 'local',
+		);
+		if ( isset( $towards[ $type ] ) ) {
+			Simple_Storage_Settings::update_state( array( 'direction' => $towards[ $type ] ) );
+		}
+
 		if ( in_array( $type, array( 'pull', 'copy_local' ), true ) ) {
 			// New uploads must stay local from now on, or they would race the download, and the
 			// automatic offload would move what was downloaded out again. A cancelled job gives
@@ -1099,17 +1114,19 @@ final class Simple_Storage_Jobs {
 					return (int) $row['size'];
 				}
 
-				// Not proven (another file under that name, or the storage out of reach this time):
-				// no copy yet, and no failure either — the listing was only a hint. Copying uploads
-				// such a file like any other; deleting leaves it where it is.
+				// Not proven: no copy yet, and no failure either — the listing was only a hint. Copying
+				// uploads such a file like any other; deleting leaves it where it is. Another file under
+				// that name is named in the error list, so that nobody is asked to check it again; the
+				// storage out of reach this time leaves the file to be checked later.
 				$current = Simple_Storage_Index::get( (string) $row['path'] );
 				if ( null !== $current && $current['local'] ) {
+					$different = is_wp_error( $verified ) && in_array( $verified->get_error_code(), array( 'simple_storage_size', 'simple_storage_integrity' ), true );
 					Simple_Storage_Index::update(
 						(int) $row['id'],
 						array(
 							'remote'   => 0,
 							'verified' => 0,
-							'error'    => null,
+							'error'    => $different ? __( 'The storage holds another file under this name. Copying everything to the storage replaces it with this one.', 'simple-storage' ) : null,
 						)
 					);
 				}

@@ -2249,6 +2249,11 @@ try {
 	$ss_listed = Simple_Storage_Index::report( 'listed_any', 0, Simple_Storage_Settings::state()['last_remote_scan'] );
 	ss_check( 3 === $ss_listed['count'] && 0 === Simple_Storage_Index::stats()['both']['files'], 'indexing counts the local files the storage has under the same name, apart from verified copies', $ss_listed );
 
+	Simple_Storage_Settings::update_state( array( 'direction' => 'remote' ) );
+	$ss_situation = Simple_Storage_Admin::situation( Simple_Storage_Settings::state(), Simple_Storage_Index::stats() );
+	$ss_next      = Simple_Storage_Admin::next_step( $ss_situation );
+	ss_check( 2 === $ss_situation['unverified'] && 'verify_remote' === ( $ss_next['action'] ?? '' ), 'the overview suggests checking the files of the same name and size first', array( $ss_situation, $ss_next ) );
+
 	$ss_other = hash_file( 'sha256', ss_remote( '2014/04/d.gif' ) );
 	$ss_job   = ss_run_job( 'verify_remote' );
 	$ss_count = (array) ( $ss_job['report']['counts'] ?? array() );
@@ -2257,6 +2262,9 @@ try {
 	ss_check( ss_copied( '2014/03/doc.pdf' ) && $ss_by_hand === filemtime( ss_remote( '2014/03/doc.pdf' ) ), 'a file uploaded by hand becomes the verified copy without being uploaded again' );
 	ss_check( $ss_other === hash_file( 'sha256', ss_remote( '2014/04/d.gif' ) ) && 'x' === file_get_contents( ss_remote( '2014/03/a.jpg' ) ) && ! is_file( ss_remote( '2014/03/a-60x45.jpg' ) ), 'the check uploads nothing, not even over another file of that name' );
 	ss_check( array() === array_filter( array_keys( $ss_step ), static fn( string $p ): bool => ! is_file( $ss_uploads . '/' . $p ) ) && ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'and deletes and switches nothing' );
+	$ss_situation = Simple_Storage_Admin::situation( Simple_Storage_Settings::state(), Simple_Storage_Index::stats() );
+	$ss_next      = Simple_Storage_Admin::next_step( $ss_situation );
+	ss_check( 0 === $ss_situation['unverified'] && 'copy_remote' === ( $ss_next['action'] ?? '' ), 'after the check nothing is offered for checking again: another file under that name is an error, and the next step is to copy what is missing', array( $ss_situation, $ss_next ) );
 
 	$ss_job = ss_run_job( 'clean_local' );
 	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_job['report']['blocked'] ?? null ), 'deleting the copies in WordPress before everything is copied deletes nothing', $ss_job['message'] ?? '' );
@@ -2265,7 +2273,7 @@ try {
 	ss_check( array() === array_filter( array_keys( $ss_step ), static fn( string $p ): bool => ! is_file( $ss_uploads . '/' . $p ) ), 'every local file stays' );
 	ss_check( ! Simple_Storage_Delivery::active() && 'local' === Simple_Storage_Settings::state()['mode'], 'and nothing is switched' );
 	ss_check( ss_copied( '2014/03/doc.pdf' ) && $ss_by_hand === filemtime( ss_remote( '2014/03/doc.pdf' ) ), 'a file uploaded by hand is verified as the copy, not uploaded again' );
-	ss_check( 0 === Simple_Storage_Index::get( '2014/04/d.gif' )['remote'] && null === Simple_Storage_Index::get( '2014/04/d.gif' )['error'], 'another file of the same size under that name is no copy, and no error either' );
+	ss_check( 0 === Simple_Storage_Index::get( '2014/04/d.gif' )['remote'] && str_contains( (string) Simple_Storage_Index::get( '2014/04/d.gif' )['error'], 'another file under this name' ), 'another file of the same size under that name is no copy, and the error list says so', Simple_Storage_Index::get( '2014/04/d.gif' ) );
 
 	$ss_job = ss_run_job( 'copy_remote' );
 	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && 0 === ss_failed( $ss_job ), 'copying everything to the storage finishes', $ss_job['message'] ?? '' );
@@ -2370,6 +2378,47 @@ try {
 	foreach ( $ss_step_ids as $ss_id ) {
 		wp_delete_attachment( $ss_id, true );
 	}
+
+	ss_section( 'Next step and step notes' );
+	$ss_base = array(
+		'configured'  => true,
+		'indexed'     => true,
+		'job_active'  => false,
+		'delivery'    => false,
+		'mode'        => 'local',
+		'direction'   => 'remote',
+		'local_only'  => 0,
+		'unverified'  => 0,
+		'both'        => 0,
+		'both_bytes'  => 0,
+		'remote_only' => 0,
+		'conflicts'   => 0,
+	);
+	$ss_next_of = static fn( array $changes ): string => (string) ( Simple_Storage_Admin::next_step( array_merge( $ss_base, $changes ) )['action'] ?? 'none' );
+	$ss_cases   = array(
+		array( array( 'job_active' => true, 'local_only' => 5 ), 'none', 'nothing is suggested while a job is unfinished' ),
+		array( array( 'configured' => false ), 'settings', 'without a connection: the settings' ),
+		array( array( 'indexed' => false ), 'index', 'never indexed: index' ),
+		array( array( 'conflicts' => 2, 'unverified' => 3 ), 'index', 'name conflicts come first' ),
+		array( array( 'unverified' => 3, 'local_only' => 3 ), 'verify_remote', 'files of the same name in the storage: check them' ),
+		array( array( 'local_only' => 4, 'both' => 2 ), 'copy_remote', 'towards the storage, files only in WordPress: copy them' ),
+		array( array( 'remote_only' => 4, 'local_only' => 1 ), 'adopt', 'files only in the storage that the site does not serve: switch to the storage' ),
+		array( array( 'both' => 4 ), 'adopt', 'everything copied: switch to the storage' ),
+		array( array( 'both' => 4, 'delivery' => true, 'mode' => 'remote' ), 'clean_local', 'served from the storage with copies on the hosting: delete them' ),
+		array( array( 'remote_only' => 4, 'delivery' => true, 'mode' => 'remote' ), '', 'everything in the storage and served from there: done' ),
+		array( array( 'direction' => 'local', 'remote_only' => 4, 'delivery' => true ), 'copy_local', 'towards WordPress, files only in the storage: copy them' ),
+		array( array( 'direction' => 'local', 'both' => 4, 'delivery' => true ), 'switch_local', 'everything copied back: switch to WordPress' ),
+		array( array( 'direction' => 'local', 'both' => 4 ), 'clean_remote', 'served from WordPress with copies in the storage: delete them' ),
+		array( array( 'direction' => 'local', 'local_only' => 4 ), '', 'everything in WordPress: done' ),
+	);
+	foreach ( $ss_cases as $ss_case ) {
+		$ss_got = $ss_next_of( $ss_case[0] );
+		ss_check( $ss_case[1] === $ss_got, 'next step: ' . $ss_case[2], $ss_got );
+	}
+	$ss_chips = Simple_Storage_Admin::step_chips( array_merge( $ss_base, array( 'local_only' => 3, 'unverified' => 3 ) ) );
+	ss_check( 'todo' === $ss_chips['copy_remote']['tone'] && str_contains( $ss_chips['copy_remote']['text'], '3' ) && 'wait' === $ss_chips['clean_local']['tone'] && 'done' === $ss_chips['switch_local']['tone'] && 'done' === $ss_chips['copy_local']['tone'], 'step notes say what each step would do now', $ss_chips );
+	$ss_chips = Simple_Storage_Admin::step_chips( array_merge( $ss_base, array( 'remote_only' => 2, 'delivery' => true, 'mode' => 'remote' ) ) );
+	ss_check( 'done' === $ss_chips['adopt']['tone'] && 'todo' === $ss_chips['copy_local']['tone'] && 'wait' === $ss_chips['switch_local']['tone'] && 'wait' === $ss_chips['clean_remote']['tone'], 'and follow the serving state', $ss_chips );
 
 	ss_section( 'Step by step: switching to the storage with the files still in WordPress' );
 	// Uploaded by hand while the local copies are still there (sizes as the metadata records them).

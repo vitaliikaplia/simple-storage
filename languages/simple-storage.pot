@@ -2,14 +2,14 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.4.2\n"
+"Project-Id-Version: Simple Storage 0.5.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/simple-storage\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-09T17:59:29+00:00\n"
+"POT-Creation-Date: 2026-11-09T18:14:45+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: simple-storage\n"
@@ -18,7 +18,7 @@ msgstr ""
 #: simple-storage.php
 #: includes/class-simple-storage-admin.php:30
 #: includes/class-simple-storage-admin.php:31
-#: includes/class-simple-storage-admin.php:156
+#: includes/class-simple-storage-admin.php:157
 msgid "Simple Storage"
 msgstr ""
 
@@ -42,85 +42,214 @@ msgid "Open"
 msgstr ""
 
 #. translators: %s: job name.
-#: includes/class-simple-storage-admin.php:134
+#: includes/class-simple-storage-admin.php:135
 #, php-format
 msgid "Simple Storage: \"%s\" is not finished."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:136
-#: includes/class-simple-storage-admin.php:477
+#: includes/class-simple-storage-admin.php:137
+#: includes/class-simple-storage-admin.php:648
 msgid "Continue"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:142
+#: includes/class-simple-storage-admin.php:143
 msgid "Sorry, you are not allowed to access this page."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:147
+#: includes/class-simple-storage-admin.php:148
 msgid "Overview"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:148
+#: includes/class-simple-storage-admin.php:149
 #: includes/class-simple-storage-tester.php:41
-#: includes/views/overview.php:105
+#: includes/views/overview.php:200
 msgid "Settings"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:149
+#: includes/class-simple-storage-admin.php:150
 #: includes/views/log.php:17
 msgid "Log"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:164
+#: includes/class-simple-storage-admin.php:165
 msgid "Simple Storage supports single-site WordPress installations only."
 msgstr ""
 
 #. translators: %s: number of files.
-#: includes/class-simple-storage-admin.php:187
+#: includes/class-simple-storage-admin.php:188
 #, php-format
 msgid "%s file"
 msgid_plural "%s files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-simple-storage-admin.php:279
+#: includes/class-simple-storage-admin.php:298
+msgid "Connect the storage first: its address, login and password go in the settings."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:301
+msgid "Index the media files to see where they are."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:305
+#, php-format
+msgid "%d files differ from the file at the same path on the other side. Rename or remove one of each pair (the error list names them), then index again."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:309
+#, php-format
+msgid "The storage already holds %d files under the same names. Check them: nothing is uploaded, deleted or switched."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:316
+#, php-format
+msgid "%d files are only in the storage. Copy them to WordPress."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:318
+#, php-format
+msgid "%d files are only in the storage, and the site does not serve them. Copy them to WordPress."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:321
+msgid "Every file in the storage is in WordPress too. Switch the site to WordPress."
+msgstr ""
+
+#. translators: 1: number of files, 2: size.
+#: includes/class-simple-storage-admin.php:325
+#, php-format
+msgid "The site serves its files from WordPress, while %1$d copies (%2$s) still take space in the storage. Free it: delete the copies in the storage."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:328
+msgid "Everything is in WordPress, and the storage holds no copies."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:333
+#, php-format
+msgid "%d files are only in the storage, and the site does not serve them yet. Switch the site to the storage."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-admin.php:337
+#, php-format
+msgid "%d files are only in WordPress. Copy them to the storage."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:340
+msgid "Every file has a verified copy in the storage. Switch the site to the storage."
+msgstr ""
+
+#. translators: 1: number of files, 2: size.
+#: includes/class-simple-storage-admin.php:344
+#, php-format
+msgid "The site serves its files from the storage, while %1$d copies (%2$s) still take space on the hosting. Free it: delete the copies in WordPress."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:347
+msgid "Everything is in the storage, and the site serves it from there."
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:350
+msgid "There are no media files yet."
+msgstr ""
+
+#. translators: %s: number of files.
+#: includes/class-simple-storage-admin.php:375
+#, php-format
+msgid "%s already there, not checked"
+msgstr ""
+
+#. translators: %s: number of files.
+#: includes/class-simple-storage-admin.php:378
+#: includes/class-simple-storage-admin.php:389
+#, php-format
+msgid "%s to copy"
+msgstr ""
+
+#. translators: %s: number of files.
+#: includes/class-simple-storage-admin.php:380
+#: includes/class-simple-storage-admin.php:389
+msgid "Nothing to copy"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:385
+#: includes/class-simple-storage-admin.php:390
+msgid "Already so"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:385
+#: includes/class-simple-storage-admin.php:390
+msgid "Ready"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:385
+msgid "The storage is empty"
+msgstr ""
+
+#. translators: %s: size.
+#: includes/class-simple-storage-admin.php:387
+#: includes/class-simple-storage-admin.php:390
+#: includes/class-simple-storage-admin.php:392
+msgid "After step 1"
+msgstr ""
+
+#. translators: %s: size.
+#: includes/class-simple-storage-admin.php:387
+#: includes/class-simple-storage-admin.php:392
+#, php-format
+msgid "Frees %s"
+msgstr ""
+
+#. translators: %s: size.
+#: includes/class-simple-storage-admin.php:387
+#: includes/class-simple-storage-admin.php:392
+msgid "Nothing to delete"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:433
 msgid "Running"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:280
+#: includes/class-simple-storage-admin.php:434
 msgid "Paused"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:281
+#: includes/class-simple-storage-admin.php:435
 msgid "Stopped by an error"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:282
+#: includes/class-simple-storage-admin.php:436
 msgid "Finished"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:283
+#: includes/class-simple-storage-admin.php:437
 msgid "Cancelled"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:286
+#: includes/class-simple-storage-admin.php:440
 msgid "Finished with errors"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:307
+#: includes/class-simple-storage-admin.php:461
 msgid "Sorry, you are not allowed to do that."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:310
+#: includes/class-simple-storage-admin.php:464
 msgid "The page has expired. Reload it and try again."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:368
-#: includes/class-simple-storage-admin.php:401
+#: includes/class-simple-storage-admin.php:522
+#: includes/class-simple-storage-admin.php:555
 msgid "Unknown action."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:389
+#: includes/class-simple-storage-admin.php:543
 #: includes/class-simple-storage-client.php:44
 #: includes/class-simple-storage-delivery.php:211
 #: includes/class-simple-storage-jobs.php:93
@@ -128,252 +257,320 @@ msgid "The storage connection is not configured."
 msgstr ""
 
 #. translators: %s: list of file extensions.
-#: includes/class-simple-storage-admin.php:425
+#: includes/class-simple-storage-admin.php:579
 #, php-format
 msgid "Serving does not work for these extensions, so their files stay local: %s. See the log for details."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:434
+#: includes/class-simple-storage-admin.php:588
 msgid "The check applies to the transparent proxy while serving from the storage is on."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:464
+#: includes/class-simple-storage-admin.php:618
 msgid ""
 "All media files will be copied to the storage and verified, serving from the storage will be enabled, and then the local copies will be deleted from WordPress.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:465
+#: includes/class-simple-storage-admin.php:619
 msgid ""
 "All files will be downloaded from the storage back into WordPress, verified, and then deleted from the storage.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:466
+#: includes/class-simple-storage-admin.php:620
 msgid ""
 "The files in the storage will be compared with the Media Library. Nothing is copied or downloaded. If nothing is missing, the site starts serving them from the storage.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:467
+#: includes/class-simple-storage-admin.php:621
 msgid ""
 "Every file that is only in WordPress will be copied to the storage, and every copy verified. Nothing is deleted, and the site keeps serving its files as before.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:468
+#: includes/class-simple-storage-admin.php:622
 msgid ""
 "Every file that is only in the storage will be downloaded into WordPress and verified. Nothing is deleted. New uploads stay in WordPress from now on.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:469
+#: includes/class-simple-storage-admin.php:623
 msgid ""
 "The files in WordPress will be compared with the storage and the Media Library. Nothing is copied or deleted. If every file is in WordPress, serving from the storage is turned off.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:470
+#: includes/class-simple-storage-admin.php:624
 msgid ""
 "The local copies will be deleted from WordPress, but only if every local file has a verified copy in the storage; otherwise nothing is deleted. Serving from the storage is turned on and checked first.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:471
+#: includes/class-simple-storage-admin.php:625
 msgid ""
 "The copies in the storage will be deleted, but only if every file in the storage is in WordPress too, with the same contents; otherwise nothing is deleted. The site then serves its files from WordPress.\n"
 "\n"
 "Continue?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:472
+#: includes/class-simple-storage-admin.php:626
 msgid "Check again"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:473
+#: includes/class-simple-storage-admin.php:627
+msgid "WordPress"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:628
+msgid "The storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:629
+msgid "a file still in WordPress is served from there"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:630
+msgid "Stay in WordPress"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:631
+msgid "Go to the storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:632
+msgid "Wait in WordPress until the job ends"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:633
+msgid "Open the settings"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:635
+#: includes/views/overview.php:74
+msgid "Index media files"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:636
+#: includes/views/overview.php:75
+msgid "Check the copies in the storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:637
+#: includes/views/overview.php:122
+msgid "Copy everything to the storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:638
+#: includes/views/overview.php:129
+msgid "Switch to the storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:639
+#: includes/views/overview.php:136
+msgid "Delete the copies in WordPress"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:640
+#: includes/views/overview.php:148
+msgid "Copy everything to WordPress"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:641
+#: includes/views/overview.php:155
+msgid "Switch to WordPress"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:642
+#: includes/views/overview.php:162
+msgid "Delete the copies in the storage"
+msgstr ""
+
+#: includes/class-simple-storage-admin.php:644
 msgid "attachments"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:474
+#: includes/class-simple-storage-admin.php:645
 msgid "Cancel the job? Files that were already processed stay where they are now."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:475
+#: includes/class-simple-storage-admin.php:646
 msgid ""
 "Some files exist only in the storage. If serving from the storage is turned off, they will not be shown on the site.\n"
 "\n"
 "Turn it off anyway?"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:476
+#: includes/class-simple-storage-admin.php:647
 msgid "Pause"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:478
+#: includes/class-simple-storage-admin.php:649
 msgid "Cancel"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:479
+#: includes/class-simple-storage-admin.php:650
 msgid "Hide"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:480
+#: includes/class-simple-storage-admin.php:651
 msgid "files"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:481
+#: includes/class-simple-storage-admin.php:652
 msgid "folders"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:482
+#: includes/class-simple-storage-admin.php:653
 msgid "failed"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:483
+#: includes/class-simple-storage-admin.php:654
 msgid "Now:"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:484
+#: includes/class-simple-storage-admin.php:655
 msgid "Started:"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:485
+#: includes/class-simple-storage-admin.php:656
 msgid "Finished:"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:486
+#: includes/class-simple-storage-admin.php:657
 msgid "The server did not respond. The job is paused; continue it when the connection is back."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:487
+#: includes/class-simple-storage-admin.php:658
 msgid "The server did not respond, and the job could not be paused. It waits; open this page again when the connection is back."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:488
+#: includes/class-simple-storage-admin.php:659
 msgid "Keep this tab open while the job runs. If you close it, the job waits until this page is opened again, and new uploads stay in WordPress until then."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:489
+#: includes/class-simple-storage-admin.php:660
 msgid "On"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:490
+#: includes/class-simple-storage-admin.php:661
 msgid "Off"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:491
+#: includes/class-simple-storage-admin.php:662
 msgid "Enable serving from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:492
+#: includes/class-simple-storage-admin.php:663
 msgid "Disable serving from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:493
+#: includes/class-simple-storage-admin.php:664
 msgid "The rules are written to uploads/.htaccess."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:494
+#: includes/class-simple-storage-admin.php:665
 msgid "The rules are not in uploads/.htaccess; missing files are served only if the server passes such requests to WordPress."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:495
+#: includes/class-simple-storage-admin.php:666
 msgid "The rules in uploads/.htaccess are outdated; the \"Check serving\" button refreshes them."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:496
+#: includes/class-simple-storage-admin.php:667
 msgid "transparent proxy, addresses unchanged"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:497
+#: includes/class-simple-storage-admin.php:668
 msgid "Proxy: Apache serves the files itself, without PHP"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:498
+#: includes/class-simple-storage-admin.php:669
 msgid "Proxy: the proxy.php script (Apache cannot proxy to the storage on this server)"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:499
+#: includes/class-simple-storage-admin.php:670
 msgid "Check the proxy engine again"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:500
+#: includes/class-simple-storage-admin.php:671
 msgid "Checking…"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:501
+#: includes/class-simple-storage-admin.php:672
 msgid "checked"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:502
+#: includes/class-simple-storage-admin.php:673
 msgid "Serving verified for:"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:503
+#: includes/class-simple-storage-admin.php:674
 msgid "Serving is not verified for the current settings yet, so new uploads stay in WordPress. Use the \"Check serving\" button."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:504
+#: includes/class-simple-storage-admin.php:675
 msgid "Check serving"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:505
+#: includes/class-simple-storage-admin.php:676
 msgid "Serving works."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:506
+#: includes/class-simple-storage-admin.php:677
 msgid "directly from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:507
+#: includes/class-simple-storage-admin.php:678
 msgid "New uploads are moved to the storage automatically."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:508
+#: includes/class-simple-storage-admin.php:679
 msgid "New uploads stay in WordPress."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:509
+#: includes/class-simple-storage-admin.php:680
 msgid "New uploads wait in WordPress until the job on this page is finished or cancelled."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:510
+#: includes/class-simple-storage-admin.php:681
 msgid "Testing…"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:511
+#: includes/class-simple-storage-admin.php:682
 msgid "Connection works."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:512
+#: includes/class-simple-storage-admin.php:683
 msgid "Connection test failed."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:513
+#: includes/class-simple-storage-admin.php:684
 msgid "never"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:514
+#: includes/class-simple-storage-admin.php:685
 msgid "Not tested yet"
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:515
+#: includes/class-simple-storage-admin.php:686
 #: includes/views/log.php:48
 msgid "No errors."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:516
+#: includes/class-simple-storage-admin.php:687
 msgid "A job is running. It stops until this page is opened again."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:517
+#: includes/class-simple-storage-admin.php:688
 msgid "The job is being processed in another tab, request or WP-CLI; this page follows its progress."
 msgstr ""
 
@@ -470,7 +667,7 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr ""
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.4.2: a \"Check the copies in the storage\" button compares the files the storage holds under the same names with WordPress and changes nothing else. Version 0.4.1: files uploaded to the storage by hand while their local copies are still in WordPress are checked and counted as copies. Version 0.4.0: a step-by-step move in either direction, for files moved by hand (FTP) or in stages. Copy everything to the storage or to WordPress without deleting anything, switch where the site serves its files from after a check that every file is there, and delete the copies on one side only when every file has a verified copy on the other. Files brought back by hand are matched by their contents."
+msgid "Version 0.5.0: a clearer overview. Where the files are and how the site serves them come first, with one suggested next step; the job shows right below; the move has two views, step by step and in one go, and each step says what it would do now. Technical details of serving are under Advanced. Version 0.4.2: a \"Check the copies in the storage\" button compares the files the storage holds under the same names with WordPress and changes nothing else. Version 0.4.1: files uploaded to the storage by hand while their local copies are still in WordPress are checked and counted as copies."
 msgstr ""
 
 #: includes/class-simple-storage-index.php:242
@@ -485,39 +682,39 @@ msgstr ""
 msgid "Another job is not finished yet. Continue or cancel it first."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:134
+#: includes/class-simple-storage-jobs.php:149
 msgid "started."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:148
+#: includes/class-simple-storage-jobs.php:163
 msgid "There is no paused job."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:176
+#: includes/class-simple-storage-jobs.php:191
 msgid "cancelled."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:196
-#: includes/class-simple-storage-jobs.php:210
+#: includes/class-simple-storage-jobs.php:211
+#: includes/class-simple-storage-jobs.php:225
 msgid "There is no running job."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:201
+#: includes/class-simple-storage-jobs.php:216
 msgid "The job is already being processed in another request."
 msgstr ""
 
 #. translators: 1: phase name, 2: number of files.
-#: includes/class-simple-storage-jobs.php:325
+#: includes/class-simple-storage-jobs.php:340
 #, php-format
 msgid "%1$s: %2$d files failed; see the error list."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:349
+#: includes/class-simple-storage-jobs.php:364
 msgid "finished."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:357
+#: includes/class-simple-storage-jobs.php:372
 #, php-format
 msgid "%d file failed."
 msgid_plural "%d files failed."
@@ -525,429 +722,433 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: failed test step and its message.
-#: includes/class-simple-storage-jobs.php:487
+#: includes/class-simple-storage-jobs.php:502
 #, php-format
 msgid "Connection test failed: %s"
 msgstr ""
 
 #. translators: %s: database error.
-#: includes/class-simple-storage-jobs.php:565
+#: includes/class-simple-storage-jobs.php:580
 #, php-format
 msgid "The index could not be saved: %s"
 msgstr ""
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:593
+#: includes/class-simple-storage-jobs.php:608
 #, php-format
 msgid "%1$d files were left out: code and data files stay out of the public storage (filter simple_storage_excluded_file). %2$s"
 msgstr ""
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:595
+#: includes/class-simple-storage-jobs.php:610
 #, php-format
 msgid "%1$d files were left out: their names are not valid UTF-8, so the index cannot record them. Rename them. %2$s"
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:664
+#: includes/class-simple-storage-jobs.php:679
 #, php-format
 msgid "%d files that no longer exist were removed from the index."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:783
+#: includes/class-simple-storage-jobs.php:798
 #, php-format
 msgid "The storage folder looks empty although %d files are recorded there; the index was left unchanged. Check the site folder setting. If the files are really gone, run: wp simple-storage index --confirm-missing"
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:796
+#: includes/class-simple-storage-jobs.php:811
 #, php-format
 msgid "%d recorded files were not found in the storage listing; the index was left unchanged. Index again later, and check the storage panel if this repeats. If the files are really gone, run: wp simple-storage index --confirm-missing"
 msgstr ""
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:836
+#: includes/class-simple-storage-jobs.php:851
 #, php-format
 msgid "%1$d files exist neither locally nor in the storage: %2$s"
 msgstr ""
 
 #. translators: %s: error message.
-#: includes/class-simple-storage-jobs.php:854
+#: includes/class-simple-storage-jobs.php:869
 #, php-format
 msgid "The storage could not be read, only local files were indexed: %s"
 msgstr ""
 
 #. translators: %s: folder in the storage.
-#: includes/class-simple-storage-jobs.php:1022
+#: includes/class-simple-storage-jobs.php:1037
 #, php-format
 msgid "Nothing was connected: the storage has no file of the Media Library in %s. Check the folder name and the year and month structure."
 msgstr ""
 
 #. translators: 1: number of missing files, 2: number of files with another size.
-#: includes/class-simple-storage-jobs.php:1026
+#: includes/class-simple-storage-jobs.php:1041
 #, php-format
 msgid "Nothing was connected: %1$d files are missing and %2$d differ in size. Upload them and check again, or connect anyway."
 msgstr ""
 
 #. translators: 1: number of files, 2: number of missing files, 3: number of files with another size.
-#: includes/class-simple-storage-jobs.php:1030
+#: includes/class-simple-storage-jobs.php:1045
 #, php-format
 msgid "Connected: the site serves %1$d files from the storage; %2$d are missing and %3$d differ in size."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1034
+#: includes/class-simple-storage-jobs.php:1049
 #, php-format
 msgid "Connected: the site serves %d files from the storage."
 msgstr ""
 
+#: includes/class-simple-storage-jobs.php:1129
+msgid "The storage holds another file under this name. Copying everything to the storage replaces it with this one."
+msgstr ""
+
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1286
+#: includes/class-simple-storage-jobs.php:1303
 #, php-format
 msgid "Checked: all %d files in WordPress have a verified copy in the storage. Nothing was uploaded, deleted or switched."
 msgstr ""
 
 #. translators: 1: number of files, 2: number of files.
-#: includes/class-simple-storage-jobs.php:1288
+#: includes/class-simple-storage-jobs.php:1305
 #, php-format
 msgid "Checked: %1$d files in WordPress have a verified copy in the storage, %2$d have none or differ from the file at the same path there; the report lists them. Nothing was uploaded, deleted or switched."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1299
+#: includes/class-simple-storage-jobs.php:1316
 msgid "Copied: every file in WordPress has a verified copy in the storage. Nothing was deleted, and the site serves its files as before."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1301
+#: includes/class-simple-storage-jobs.php:1318
 #, php-format
 msgid "Copied, but %d files in WordPress still have no verified copy in the storage, or differ from the file at the same path there. Nothing was deleted. Check the errors and copy again."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1311
+#: includes/class-simple-storage-jobs.php:1328
 msgid "Copied: every file in the storage is in WordPress too. Nothing was deleted, and new uploads stay in WordPress from now on."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1313
+#: includes/class-simple-storage-jobs.php:1330
 #, php-format
 msgid "Copied, but %d files are still only in the storage, name conflicts included. Nothing was deleted. Check the errors and copy again."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1326
+#: includes/class-simple-storage-jobs.php:1343
 msgid "Nothing was switched: some files are only in the storage, or differ from the file at the same path in WordPress; the report lists them. Bring them back (or copy everything to WordPress) and check again."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1328
+#: includes/class-simple-storage-jobs.php:1345
 #, php-format
 msgid "Nothing was switched: %d files the Media Library needs are missing both in WordPress and in the storage. Upload them and check again, or switch anyway."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1332
+#: includes/class-simple-storage-jobs.php:1349
 #, php-format
 msgid "Switched: the site serves its files from WordPress, and serving from the storage is off; %d files the Media Library needs are missing. The copies in the storage were kept."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1333
+#: includes/class-simple-storage-jobs.php:1350
 msgid "Switched: the site serves its files from WordPress, and serving from the storage is off. The copies in the storage were kept."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1342
+#: includes/class-simple-storage-jobs.php:1359
 msgid "Nothing was deleted: not every file in WordPress has a verified copy in the storage; the report lists the ones that do not. Copy everything to the storage first."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1350
+#: includes/class-simple-storage-jobs.php:1367
 msgid "Deleted: the site serves every file from the storage, and no copy is left in WordPress."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1352
+#: includes/class-simple-storage-jobs.php:1369
 #, php-format
 msgid "Deleted, but %d files stay in WordPress: serving their extension from the storage did not work, or the deletion failed. See the warnings and errors."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1360
+#: includes/class-simple-storage-jobs.php:1377
 msgid "Nothing was deleted: not every file in the storage is in WordPress with the same contents; the report lists the ones that are not. Copy everything to WordPress first."
 msgstr ""
 
 #. translators: 1: number of files, 2: list of paths.
-#: includes/class-simple-storage-jobs.php:1369
+#: includes/class-simple-storage-jobs.php:1386
 #, php-format
 msgid "%1$d files in the storage differ from the files at the same paths in WordPress, so they were kept. Remove them in the storage panel if nobody needs them: %2$s"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1378
-#: includes/class-simple-storage-jobs.php:1590
+#: includes/class-simple-storage-jobs.php:1395
+#: includes/class-simple-storage-jobs.php:1607
 msgid "All files are back in WordPress. If the site is behind Cloudflare or another CDN, purge its cache so that cached redirects to the storage disappear."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1382
+#: includes/class-simple-storage-jobs.php:1399
 msgid "Deleted: the site serves every file from WordPress, and no copy is left in the storage."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1384
+#: includes/class-simple-storage-jobs.php:1401
 #, php-format
 msgid "Deleted, but %d copies in the storage could not be deleted. See the errors and run the job again."
 msgstr ""
 
 #. translators: 1: file extension, 2: error message.
-#: includes/class-simple-storage-jobs.php:1463
+#: includes/class-simple-storage-jobs.php:1480
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage, and the site has no copy of them: %2$s"
 msgstr ""
 
 #. translators: 1: file extension, 2: error message.
-#: includes/class-simple-storage-jobs.php:1465
+#: includes/class-simple-storage-jobs.php:1482
 #, php-format
 msgid "Files with the extension .%1$s are not served from the storage and stay local: %2$s"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1482
+#: includes/class-simple-storage-jobs.php:1499
 msgid "Serving from the storage is off, so local copies were kept."
 msgstr ""
 
 #. translators: %s: file extension.
-#: includes/class-simple-storage-jobs.php:1495
+#: includes/class-simple-storage-jobs.php:1512
 #, php-format
 msgid "Serving .%s files from the storage is not verified, so the local file was kept."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1511
+#: includes/class-simple-storage-jobs.php:1528
 #, php-format
 msgid "%d files are still stored locally; run the transfer again after checking the errors."
 msgstr ""
 
 #. translators: 1: required size, 2: free size.
-#: includes/class-simple-storage-jobs.php:1531
+#: includes/class-simple-storage-jobs.php:1548
 #, php-format
 msgid "Not enough disk space: %1$s is needed, %2$s is free."
 msgstr ""
 
 #. translators: %d: number of files.
-#: includes/class-simple-storage-jobs.php:1593
+#: includes/class-simple-storage-jobs.php:1610
 #, php-format
 msgid "%d files are still only in the storage, name conflicts included, so serving from the storage stays on. Check the errors and run the transfer again."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1705
+#: includes/class-simple-storage-jobs.php:1722
 msgid "The job lock was lost; the work will be done again later."
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1720
+#: includes/class-simple-storage-jobs.php:1737
 msgid "Indexing"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1721
+#: includes/class-simple-storage-jobs.php:1738
 msgid "Transfer to the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1722
+#: includes/class-simple-storage-jobs.php:1739
 msgid "Return from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1723
+#: includes/class-simple-storage-jobs.php:1740
 msgid "Switching to the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1724
+#: includes/class-simple-storage-jobs.php:1741
 msgid "Checking the copies in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1725
+#: includes/class-simple-storage-jobs.php:1742
 msgid "Copying everything to the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1726
+#: includes/class-simple-storage-jobs.php:1743
 msgid "Copying everything to WordPress"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1727
+#: includes/class-simple-storage-jobs.php:1744
 msgid "Switching to WordPress"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1728
+#: includes/class-simple-storage-jobs.php:1745
 msgid "Deleting the copies in WordPress"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1729
+#: includes/class-simple-storage-jobs.php:1746
 msgid "Deleting the copies in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1737
+#: includes/class-simple-storage-jobs.php:1754
 msgid "Connection check"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1738
+#: includes/class-simple-storage-jobs.php:1755
 msgid "Finding media folders"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1739
+#: includes/class-simple-storage-jobs.php:1756
 msgid "Indexing local files"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1740
+#: includes/class-simple-storage-jobs.php:1757
 msgid "Updating the index"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1741
+#: includes/class-simple-storage-jobs.php:1758
 msgid "Finding folders in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1742
+#: includes/class-simple-storage-jobs.php:1759
 msgid "Indexing files in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1743
+#: includes/class-simple-storage-jobs.php:1760
 msgid "Reconciling the index"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1744
+#: includes/class-simple-storage-jobs.php:1761
 msgid "Copying to the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1745
+#: includes/class-simple-storage-jobs.php:1762
 msgid "Verifying copies"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1746
+#: includes/class-simple-storage-jobs.php:1763
 msgid "Enabling serving from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1747
+#: includes/class-simple-storage-jobs.php:1764
 msgid "Checking serving from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1748
+#: includes/class-simple-storage-jobs.php:1765
 msgid "Deleting local copies"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1749
-#: includes/class-simple-storage-jobs.php:1753
-#: includes/class-simple-storage-jobs.php:1755
-#: includes/class-simple-storage-jobs.php:1764
+#: includes/class-simple-storage-jobs.php:1766
+#: includes/class-simple-storage-jobs.php:1770
+#: includes/class-simple-storage-jobs.php:1772
+#: includes/class-simple-storage-jobs.php:1781
 msgid "Finishing"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1750
+#: includes/class-simple-storage-jobs.php:1767
 msgid "Downloading to WordPress"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1751
+#: includes/class-simple-storage-jobs.php:1768
 msgid "Deleting copies in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1752
+#: includes/class-simple-storage-jobs.php:1769
 msgid "Removing empty storage folders"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1754
+#: includes/class-simple-storage-jobs.php:1771
 msgid "Comparing with the Media Library"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1756
+#: includes/class-simple-storage-jobs.php:1773
 msgid "Matching files at the same paths"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1757
+#: includes/class-simple-storage-jobs.php:1774
 msgid "Checking copies already in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1758
+#: includes/class-simple-storage-jobs.php:1775
 msgid "Comparing the Media Library with the site disk"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1759
+#: includes/class-simple-storage-jobs.php:1776
 msgid "Turning off serving from the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1760
+#: includes/class-simple-storage-jobs.php:1777
 msgid "Checking that every file has a copy in the storage"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1761
+#: includes/class-simple-storage-jobs.php:1778
 msgid "Checking that every file is in WordPress"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1785
+#: includes/class-simple-storage-jobs.php:1802
 msgid "Attachments checked:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1786
+#: includes/class-simple-storage-jobs.php:1803
 msgid "Files they need:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1787
+#: includes/class-simple-storage-jobs.php:1804
 msgid "In the storage:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1788
+#: includes/class-simple-storage-jobs.php:1805
 msgid "On the site disk:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1789
+#: includes/class-simple-storage-jobs.php:1806
 msgid "Missing:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1790
+#: includes/class-simple-storage-jobs.php:1807
 msgid "Different size (image optimizers can cause this):"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1791
+#: includes/class-simple-storage-jobs.php:1808
 msgid "Missing outside the year and month folders (these belong on the site disk):"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1792
+#: includes/class-simple-storage-jobs.php:1809
 msgid "In the storage without an attachment (theme copies, leftovers):"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1793
+#: includes/class-simple-storage-jobs.php:1810
 msgid "Only in the storage:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1794
+#: includes/class-simple-storage-jobs.php:1811
 msgid "A different file at the same path on the other side:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1795
+#: includes/class-simple-storage-jobs.php:1812
 msgid "Files in WordPress:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1796
+#: includes/class-simple-storage-jobs.php:1813
 msgid "With a verified copy in the storage:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1797
+#: includes/class-simple-storage-jobs.php:1814
 msgid "Without a verified copy in the storage:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1798
+#: includes/class-simple-storage-jobs.php:1815
 msgid "Files in the storage:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1799
+#: includes/class-simple-storage-jobs.php:1816
 msgid "The same file in WordPress:"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1845
+#: includes/class-simple-storage-jobs.php:1862
 msgid "Connect anyway"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1845
+#: includes/class-simple-storage-jobs.php:1862
 msgid "Switch anyway"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1847
+#: includes/class-simple-storage-jobs.php:1864
 msgid ""
 "The site will serve what the storage has. Files that are missing stay broken until they are uploaded.\n"
 "\n"
 "Connect anyway?"
 msgstr ""
 
-#: includes/class-simple-storage-jobs.php:1848
+#: includes/class-simple-storage-jobs.php:1865
 msgid ""
 "The site will serve its files from WordPress. Files that are missing stay broken until they are uploaded.\n"
 "\n"
@@ -1163,7 +1364,7 @@ msgid "Clear the log"
 msgstr ""
 
 #: includes/views/log.php:45
-#: includes/views/overview.php:190
+#: includes/views/overview.php:254
 msgid "Files with errors"
 msgstr ""
 
@@ -1172,196 +1373,184 @@ msgid "File"
 msgstr ""
 
 #: includes/views/log.php:66
-#: includes/views/overview.php:192
+#: includes/views/overview.php:256
 msgid "Clear the error list"
 msgstr ""
 
 #: includes/views/log.php:67
-#: includes/views/overview.php:193
+#: includes/views/overview.php:257
 msgid "A name conflict stays on the list until one of the two files is renamed or removed and the files are indexed again."
 msgstr ""
 
-#: includes/views/overview.php:17
-msgid "The storage is not connected yet. You can already index the media files; transfers need the connection."
-msgstr ""
-
-#: includes/views/overview.php:18
-msgid "Connect the storage"
-msgstr ""
-
-#: includes/views/overview.php:25
-msgid "Media files"
+#: includes/views/overview.php:21
+msgid "The site serves media from"
 msgstr ""
 
 #: includes/views/overview.php:26
-msgid "Files in the year and month folders of uploads, the ones added through the Media Library. Other folders in wp-content are not touched."
+#: includes/views/overview.php:225
+#: includes/views/settings.php:114
+msgid "New uploads"
 msgstr ""
 
 #: includes/views/overview.php:30
 msgid "All media files"
 msgstr ""
 
-#: includes/views/overview.php:35
+#: includes/views/overview.php:45
 msgid "Only in WordPress"
 msgstr ""
 
-#: includes/views/overview.php:40
-msgid "of them, the storage has a file under the same name, not verified yet"
+#: includes/views/overview.php:50
+msgid "of them, the storage has a file of the same name and size, not checked yet"
 msgstr ""
 
-#: includes/views/overview.php:45
+#: includes/views/overview.php:55
 msgid "In WordPress and in the storage"
 msgstr ""
 
-#: includes/views/overview.php:50
+#: includes/views/overview.php:60
 msgid "Only in the storage"
 msgstr ""
 
-#: includes/views/overview.php:56
+#: includes/views/overview.php:66
 msgid "A file of the same name in the storage counts as the copy only once its contents are checked: the \"Check the copies in the storage\" button does that and nothing else. \"Copy everything to the storage\", \"Switch to the storage\" and \"Delete the copies in WordPress\" check them too."
 msgstr ""
 
-#: includes/views/overview.php:58
+#: includes/views/overview.php:70
 msgid "Last indexed:"
 msgstr ""
 
-#: includes/views/overview.php:59
+#: includes/views/overview.php:71
 msgid "Errors:"
 msgstr ""
 
-#: includes/views/overview.php:62
-msgid "Index media files"
+#: includes/views/overview.php:78
+msgid "Files in the year and month folders of uploads, the ones added through the Media Library. Other folders in wp-content are not touched."
 msgstr ""
 
-#: includes/views/overview.php:63
-msgid "Check the copies in the storage"
-msgstr ""
-
-#: includes/views/overview.php:65
+#: includes/views/overview.php:79
 msgid "Indexing lists what is in WordPress and in the storage. The check also compares the contents of the files the storage holds under the same names (uploaded by hand, for example) and counts them as copies; it uploads, deletes and switches nothing."
 msgstr ""
 
-#: includes/views/overview.php:69
-msgid "Storage"
+#: includes/views/overview.php:83
+msgid "Next step"
 msgstr ""
 
-#: includes/views/overview.php:73
-msgid "Connection"
+#: includes/views/overview.php:95
+msgid "Stages of the job"
 msgstr ""
 
-#: includes/views/overview.php:77
-#: includes/views/settings.php:29
-msgid "Storage address"
+#: includes/views/overview.php:107
+msgid "Move"
 msgstr ""
 
-#: includes/views/overview.php:81
-msgid "Files are served from"
+#: includes/views/overview.php:108
+msgid "How to move"
 msgstr ""
 
-#: includes/views/overview.php:85
-msgid "Serving from the storage"
-msgstr ""
-
-#: includes/views/overview.php:98
-#: includes/views/settings.php:114
-msgid "New uploads"
-msgstr ""
-
-#: includes/views/overview.php:111
-msgid "Transfer"
-msgstr ""
-
-#: includes/views/overview.php:114
-msgid "Move everything to the storage"
-msgstr ""
-
-#: includes/views/overview.php:115
-msgid "Copy → verify → enable serving from the storage → delete local copies. A local file is deleted only after its copy in the storage has been verified."
-msgstr ""
-
-#: includes/views/overview.php:118
-msgid "Return everything to WordPress"
-msgstr ""
-
-#: includes/views/overview.php:119
-msgid "Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads."
-msgstr ""
-
-#: includes/views/overview.php:125
+#: includes/views/overview.php:109
 msgid "Step by step"
 msgstr ""
 
-#: includes/views/overview.php:126
+#: includes/views/overview.php:110
+msgid "In one go"
+msgstr ""
+
+#: includes/views/overview.php:115
 msgid "For a move done by hand or in stages, and for a site whose files are partly in WordPress and partly in the storage. Copying never deletes anything. Switching copies nothing: it checks the files and changes where the site serves them from. Deleting happens only when every file has a verified copy on the other side; otherwise nothing is deleted and the job names what is missing."
 msgstr ""
 
+#: includes/views/overview.php:118
+msgid "To the storage"
+msgstr ""
+
+#: includes/views/overview.php:125
+msgid "Uploads what is only in WordPress and verifies every copy; files already in the storage (uploaded by hand) are verified, not uploaded again. Nothing is deleted."
+msgstr ""
+
+#: includes/views/overview.php:132
+msgid "Compares the storage with the Media Library and, when nothing is missing, turns on serving from the storage; new uploads follow there. Nothing is copied or deleted."
+msgstr ""
+
+#: includes/views/overview.php:139
+msgid "Frees the hosting disk. Only if every local file has a verified copy in the storage: then serving from the storage is turned on and checked, and the local copies are deleted."
+msgstr ""
+
+#: includes/views/overview.php:144
+msgid "To WordPress"
+msgstr ""
+
+#: includes/views/overview.php:151
+msgid "Downloads what is only in the storage and verifies every file; new uploads stay in WordPress from now on. Nothing is deleted."
+msgstr ""
+
+#: includes/views/overview.php:158
+msgid "For files brought back by hand: checks that every file in the storage and every file of the Media Library is in WordPress, then turns serving from the storage off. Nothing is copied or deleted."
+msgstr ""
+
+#: includes/views/overview.php:165
+msgid "Frees the storage. Only if every file in the storage is in WordPress too, with the same contents: then the copies in the storage are deleted and serving from it is turned off."
+msgstr ""
+
 #. translators: 1: folder in the storage, 2: example path.
-#: includes/views/overview.php:131
+#: includes/views/overview.php:174
 #, php-format
 msgid "Step 1 can also be done by hand (FTP), for example for media that do not fit on the hosting: copy the year and month folders of uploads to %1$s (as in %2$s), or from there back into uploads, then continue with step 2."
 msgstr ""
 
-#: includes/views/overview.php:139
-msgid "To the storage"
+#: includes/views/overview.php:185
+msgid "Move everything to the storage"
 msgstr ""
 
-#: includes/views/overview.php:142
-msgid "Copy everything to the storage"
+#: includes/views/overview.php:186
+msgid "Copy → verify → enable serving from the storage → delete local copies. A local file is deleted only after its copy in the storage has been verified."
 msgstr ""
 
-#: includes/views/overview.php:143
-msgid "Uploads what is only in WordPress and verifies every copy; files already in the storage (uploaded by hand) are verified, not uploaded again. Nothing is deleted."
+#: includes/views/overview.php:189
+msgid "Return everything to WordPress"
 msgstr ""
 
-#: includes/views/overview.php:146
-msgid "Switch to the storage"
-msgstr ""
-
-#: includes/views/overview.php:147
-msgid "Compares the storage with the Media Library and, when nothing is missing, turns on serving from the storage; new uploads follow there. Nothing is copied or deleted."
-msgstr ""
-
-#: includes/views/overview.php:150
-msgid "Delete the copies in WordPress"
-msgstr ""
-
-#: includes/views/overview.php:151
-msgid "Frees the hosting disk. Only if every local file has a verified copy in the storage: then serving from the storage is turned on and checked, and the local copies are deleted."
-msgstr ""
-
-#: includes/views/overview.php:156
-msgid "To WordPress"
-msgstr ""
-
-#: includes/views/overview.php:159
-msgid "Copy everything to WordPress"
-msgstr ""
-
-#: includes/views/overview.php:160
-msgid "Downloads what is only in the storage and verifies every file; new uploads stay in WordPress from now on. Nothing is deleted."
-msgstr ""
-
-#: includes/views/overview.php:163
-msgid "Switch to WordPress"
-msgstr ""
-
-#: includes/views/overview.php:164
-msgid "For files brought back by hand: checks that every file in the storage and every file of the Media Library is in WordPress, then turns serving from the storage off. Nothing is copied or deleted."
-msgstr ""
-
-#: includes/views/overview.php:167
-msgid "Delete the copies in the storage"
-msgstr ""
-
-#: includes/views/overview.php:168
-msgid "Frees the storage. Only if every file in the storage is in WordPress too, with the same contents: then the copies in the storage are deleted and serving from it is turned off."
-msgstr ""
-
-#: includes/views/overview.php:197
-msgid "Recent events"
+#: includes/views/overview.php:190
+msgid "Download → verify → delete from the storage → disable serving from the storage. The result is a regular WordPress with all media in uploads."
 msgstr ""
 
 #: includes/views/overview.php:199
+msgid "Storage and serving"
+msgstr ""
+
+#: includes/views/overview.php:205
+msgid "The storage is not connected yet. You can already index the media files; transfers need the connection."
+msgstr ""
+
+#: includes/views/overview.php:206
+msgid "Connect the storage"
+msgstr ""
+
+#: includes/views/overview.php:213
+msgid "Connection"
+msgstr ""
+
+#: includes/views/overview.php:217
+msgid "Files are served from"
+msgstr ""
+
+#: includes/views/overview.php:221
+msgid "Serving from the storage"
+msgstr ""
+
+#: includes/views/overview.php:231
+msgid "Advanced"
+msgstr ""
+
+#: includes/views/overview.php:239
+msgid "Turning serving on or off by hand skips the checks the steps make: once it is off, files that exist only in the storage are not shown on the site."
+msgstr ""
+
+#: includes/views/overview.php:246
+msgid "Recent events"
+msgstr ""
+
+#: includes/views/overview.php:247
 msgid "Full log"
 msgstr ""
 
@@ -1373,6 +1562,10 @@ msgstr ""
 
 #: includes/views/settings.php:25
 msgid "Storage connection"
+msgstr ""
+
+#: includes/views/settings.php:29
+msgid "Storage address"
 msgstr ""
 
 #: includes/views/settings.php:36

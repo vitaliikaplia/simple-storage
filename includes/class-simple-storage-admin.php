@@ -108,6 +108,7 @@ final class Simple_Storage_Admin {
 			'SimpleStorage',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'settingsUrl' => self::url( 'settings' ),
 				'nonce'   => wp_create_nonce( self::NONCE ),
 				'state'   => self::state(),
 				'i18n'    => self::js_strings(),
@@ -178,8 +179,8 @@ final class Simple_Storage_Admin {
 	public static function state(): array {
 		$settings = Simple_Storage_Settings::state();
 		$stats    = Simple_Storage_Index::stats();
-		// Local files the storage holds under the same name, not proven to be their copies yet.
-		$listed   = Simple_Storage_Index::report( 'listed_any', 0, $settings['last_remote_scan'] );
+		// Local files the storage holds under the same name and size, not compared yet.
+		$listed   = Simple_Storage_Index::report( 'listed_unchecked', 0, $settings['last_remote_scan'] );
 		// Locales such as uk use "&nbsp;" as the thousands separator; the page sets text, not HTML.
 		$text     = static fn( string $value ): string => html_entity_decode( $value, ENT_QUOTES, 'UTF-8' );
 		$format   = static fn( array $item ): array => array(
@@ -187,6 +188,8 @@ final class Simple_Storage_Admin {
 			'files' => $text( sprintf( _n( '%s file', '%s files', $item['files'], 'simple-storage' ), number_format_i18n( $item['files'] ) ) ),
 			'bytes' => $text( size_format( $item['bytes'], 1 ) ?: '0 B' ),
 		);
+
+		$situation = self::situation( $settings, $stats );
 
 		$log = array();
 		foreach ( array_reverse( array_slice( Simple_Storage_Log::entries(), -15 ) ) as $entry ) {
@@ -219,7 +222,16 @@ final class Simple_Storage_Admin {
 					'remote_only' => $stats['remote_only']['files'],
 					'listed'      => $listed['count'],
 				),
+				// Sizes for the bar of where the files are.
+				'bytes'       => array(
+					'local_only'  => $stats['local_only']['bytes'],
+					'listed'      => $listed['bytes'],
+					'both'        => $stats['both']['bytes'],
+					'remote_only' => $stats['remote_only']['bytes'],
+				),
 			),
+			'next'        => self::next_step( $situation ),
+			'chips'       => self::step_chips( $situation ),
 			'configured'  => Simple_Storage_Settings::is_configured(),
 			'test'        => array(
 				'ok'   => ! empty( $settings['last_test']['ok'] ),
@@ -236,6 +248,148 @@ final class Simple_Storage_Admin {
 			'mode'        => $settings['mode'],
 			'errors'      => Simple_Storage_Index::errors( 20 ),
 			'log'         => $log,
+		);
+	}
+
+	/**
+	 * Where the files are and how the site serves them, in the numbers the next-step suggestion and
+	 * the step chips are made of.
+	 *
+	 * @param array<string, mixed> $settings Simple_Storage_Settings::state().
+	 * @param array<string, mixed> $stats    Simple_Storage_Index::stats().
+	 * @return array<string, mixed>
+	 */
+	public static function situation( array $settings, array $stats ): array {
+		return array(
+			'configured'  => Simple_Storage_Settings::is_configured(),
+			'indexed'     => (int) $settings['last_index'] > 0,
+			'job_active'  => Simple_Storage_Jobs::is_active(),
+			'delivery'    => Simple_Storage_Delivery::active(),
+			'mode'        => (string) $settings['mode'],
+			'direction'   => (string) $settings['direction'],
+			'local_only'  => (int) $stats['local_only']['files'],
+			'unverified'  => Simple_Storage_Index::report( 'listed_unchecked', 0, (int) $settings['last_remote_scan'] )['count'],
+			'both'        => (int) $stats['both']['files'],
+			'both_bytes'  => (int) $stats['both']['bytes'],
+			'remote_only' => (int) $stats['remote_only']['files'],
+			'conflicts'   => Simple_Storage_Index::report( 'conflict', 0 )['count'],
+		);
+	}
+
+	/**
+	 * The one thing to do next, in the direction the site is moving: a sentence, the job its button
+	 * starts ("settings" opens the settings, "" for none) and a tone (info, warning, success).
+	 *
+	 * @param array<string, mixed> $s self::situation().
+	 * @return array{text: string, action: string, tone: string}|null Null while a job is unfinished.
+	 */
+	public static function next_step( array $s ): ?array {
+		$step = static fn( string $text, string $action, string $tone = 'info' ): array => array(
+			'text'   => $text,
+			'action' => $action,
+			'tone'   => $tone,
+		);
+		$size = static fn( int $bytes ): string => html_entity_decode( size_format( $bytes, 1 ) ?: '0 B', ENT_QUOTES, 'UTF-8' );
+
+		if ( ! empty( $s['job_active'] ) ) {
+			return null;
+		}
+		if ( empty( $s['configured'] ) ) {
+			return $step( __( 'Connect the storage first: its address, login and password go in the settings.', 'simple-storage' ), 'settings' );
+		}
+		if ( empty( $s['indexed'] ) ) {
+			return $step( __( 'Index the media files to see where they are.', 'simple-storage' ), 'index' );
+		}
+		if ( $s['conflicts'] > 0 ) {
+			/* translators: %d: number of files. */
+			return $step( sprintf( __( '%d files differ from the file at the same path on the other side. Rename or remove one of each pair (the error list names them), then index again.', 'simple-storage' ), $s['conflicts'] ), 'index', 'warning' );
+		}
+		if ( $s['unverified'] > 0 ) {
+			/* translators: %d: number of files. */
+			return $step( sprintf( __( 'The storage already holds %d files under the same names. Check them: nothing is uploaded, deleted or switched.', 'simple-storage' ), $s['unverified'] ), 'verify_remote' );
+		}
+
+		if ( 'local' === $s['direction'] ) {
+			if ( $s['remote_only'] > 0 ) {
+				return $s['delivery']
+					/* translators: %d: number of files. */
+					? $step( sprintf( __( '%d files are only in the storage. Copy them to WordPress.', 'simple-storage' ), $s['remote_only'] ), 'copy_local' )
+					/* translators: %d: number of files. */
+					: $step( sprintf( __( '%d files are only in the storage, and the site does not serve them. Copy them to WordPress.', 'simple-storage' ), $s['remote_only'] ), 'copy_local', 'warning' );
+			}
+			if ( $s['delivery'] ) {
+				return $step( __( 'Every file in the storage is in WordPress too. Switch the site to WordPress.', 'simple-storage' ), 'switch_local' );
+			}
+			if ( $s['both'] > 0 ) {
+				/* translators: 1: number of files, 2: size. */
+				return $step( sprintf( __( 'The site serves its files from WordPress, while %1$d copies (%2$s) still take space in the storage. Free it: delete the copies in the storage.', 'simple-storage' ), $s['both'], $size( $s['both_bytes'] ) ), 'clean_remote' );
+			}
+
+			return $step( __( 'Everything is in WordPress, and the storage holds no copies.', 'simple-storage' ), '', 'success' );
+		}
+
+		if ( $s['remote_only'] > 0 && ! $s['delivery'] ) {
+			/* translators: %d: number of files. */
+			return $step( sprintf( __( '%d files are only in the storage, and the site does not serve them yet. Switch the site to the storage.', 'simple-storage' ), $s['remote_only'] ), 'adopt', 'warning' );
+		}
+		if ( $s['local_only'] > 0 ) {
+			/* translators: %d: number of files. */
+			return $step( sprintf( __( '%d files are only in WordPress. Copy them to the storage.', 'simple-storage' ), $s['local_only'] ), 'copy_remote' );
+		}
+		if ( ! $s['delivery'] && $s['both'] > 0 ) {
+			return $step( __( 'Every file has a verified copy in the storage. Switch the site to the storage.', 'simple-storage' ), 'adopt' );
+		}
+		if ( $s['delivery'] && $s['both'] > 0 ) {
+			/* translators: 1: number of files, 2: size. */
+			return $step( sprintf( __( 'The site serves its files from the storage, while %1$d copies (%2$s) still take space on the hosting. Free it: delete the copies in WordPress.', 'simple-storage' ), $s['both'], $size( $s['both_bytes'] ) ), 'clean_local' );
+		}
+		if ( $s['delivery'] ) {
+			return $step( __( 'Everything is in the storage, and the site serves it from there.', 'simple-storage' ), '', 'success' );
+		}
+
+		return $step( __( 'There are no media files yet.', 'simple-storage' ), '', 'success' );
+	}
+
+	/**
+	 * A short note next to each step-by-step button: what it would do now. Tones: todo (there is
+	 * work for it), done (nothing to do), wait (an earlier step comes first). Buttons stay usable:
+	 * every job checks for itself.
+	 *
+	 * @param array<string, mixed> $s self::situation().
+	 * @return array<string, array{text: string, tone: string}>
+	 */
+	public static function step_chips( array $s ): array {
+		$chip = static fn( string $text, string $tone ): array => array(
+			'text' => $text,
+			'tone' => $tone,
+		);
+		$size = static fn( int $bytes ): string => html_entity_decode( size_format( $bytes, 1 ) ?: '0 B', ENT_QUOTES, 'UTF-8' );
+		$num  = static fn( int $number ): string => html_entity_decode( number_format_i18n( $number ), ENT_QUOTES, 'UTF-8' );
+
+		$in_storage = $s['both'] + $s['remote_only'] + $s['unverified'] > 0;
+		$on_storage = $s['delivery'] && 'remote' === $s['mode'];
+		$on_site    = ! $s['delivery'] && 'local' === $s['mode'];
+
+		if ( $s['unverified'] > 0 ) {
+			/* translators: %s: number of files. */
+			$copy_remote = $chip( sprintf( __( '%s already there, not checked', 'simple-storage' ), $num( $s['unverified'] ) ), 'todo' );
+		} elseif ( $s['local_only'] > 0 ) {
+			/* translators: %s: number of files. */
+			$copy_remote = $chip( sprintf( __( '%s to copy', 'simple-storage' ), $num( $s['local_only'] ) ), 'todo' );
+		} else {
+			$copy_remote = $chip( __( 'Nothing to copy', 'simple-storage' ), 'done' );
+		}
+
+		return array(
+			'copy_remote'  => $copy_remote,
+			'adopt'        => $on_storage ? $chip( __( 'Already so', 'simple-storage' ), 'done' ) : ( $in_storage ? $chip( __( 'Ready', 'simple-storage' ), 'todo' ) : $chip( __( 'The storage is empty', 'simple-storage' ), 'wait' ) ),
+			/* translators: %s: size. */
+			'clean_local'  => $s['local_only'] > 0 ? $chip( __( 'After step 1', 'simple-storage' ), 'wait' ) : ( $s['both'] > 0 ? $chip( sprintf( __( 'Frees %s', 'simple-storage' ), $size( $s['both_bytes'] ) ), 'todo' ) : $chip( __( 'Nothing to delete', 'simple-storage' ), 'done' ) ),
+			/* translators: %s: number of files. */
+			'copy_local'   => $s['remote_only'] > 0 ? $chip( sprintf( __( '%s to copy', 'simple-storage' ), $num( $s['remote_only'] ) ), 'todo' ) : $chip( __( 'Nothing to copy', 'simple-storage' ), 'done' ),
+			'switch_local' => $on_site ? $chip( __( 'Already so', 'simple-storage' ), 'done' ) : ( $s['remote_only'] > 0 ? $chip( __( 'After step 1', 'simple-storage' ), 'wait' ) : $chip( __( 'Ready', 'simple-storage' ), 'todo' ) ),
+			/* translators: %s: size. */
+			'clean_remote' => $s['remote_only'] > 0 ? $chip( __( 'After step 1', 'simple-storage' ), 'wait' ) : ( $s['both'] > 0 ? $chip( sprintf( __( 'Frees %s', 'simple-storage' ), $size( $s['both_bytes'] ) ), 'todo' ) : $chip( __( 'Nothing to delete', 'simple-storage' ), 'done' ) ),
 		);
 	}
 
@@ -458,7 +612,7 @@ final class Simple_Storage_Admin {
 		return $limit > 0 ? (float) max( 5, min( 20, $limit - 10 ) ) : 20.0;
 	}
 
-	/** @return array<string, string> */
+	/** @return array<string, string|array<string, string>> */
 	private static function js_strings(): array {
 		return array(
 			'confirmPush'      => __( "All media files will be copied to the storage and verified, serving from the storage will be enabled, and then the local copies will be deleted from WordPress.\n\nContinue?", 'simple-storage' ),
@@ -470,6 +624,23 @@ final class Simple_Storage_Admin {
 			'confirmCleanLocal' => __( "The local copies will be deleted from WordPress, but only if every local file has a verified copy in the storage; otherwise nothing is deleted. Serving from the storage is turned on and checked first.\n\nContinue?", 'simple-storage' ),
 			'confirmCleanRemote' => __( "The copies in the storage will be deleted, but only if every file in the storage is in WordPress too, with the same contents; otherwise nothing is deleted. The site then serves its files from WordPress.\n\nContinue?", 'simple-storage' ),
 			'checkAgain'       => __( 'Check again', 'simple-storage' ),
+			'factWordPress'    => __( 'WordPress', 'simple-storage' ),
+			'factStorage'      => __( 'The storage', 'simple-storage' ),
+			'factLocalFirst'   => __( 'a file still in WordPress is served from there', 'simple-storage' ),
+			'uploadsLocal'     => __( 'Stay in WordPress', 'simple-storage' ),
+			'uploadsStorage'   => __( 'Go to the storage', 'simple-storage' ),
+			'uploadsHeld'      => __( 'Wait in WordPress until the job ends', 'simple-storage' ),
+			'openSettings'     => __( 'Open the settings', 'simple-storage' ),
+			'actions'          => array(
+				'index'         => __( 'Index media files', 'simple-storage' ),
+				'verify_remote' => __( 'Check the copies in the storage', 'simple-storage' ),
+				'copy_remote'   => __( 'Copy everything to the storage', 'simple-storage' ),
+				'adopt'         => __( 'Switch to the storage', 'simple-storage' ),
+				'clean_local'   => __( 'Delete the copies in WordPress', 'simple-storage' ),
+				'copy_local'    => __( 'Copy everything to WordPress', 'simple-storage' ),
+				'switch_local'  => __( 'Switch to WordPress', 'simple-storage' ),
+				'clean_remote'  => __( 'Delete the copies in the storage', 'simple-storage' ),
+			),
 			'attachments'      => __( 'attachments', 'simple-storage' ),
 			'confirmCancel'    => __( 'Cancel the job? Files that were already processed stay where they are now.', 'simple-storage' ),
 			'confirmDisable'   => __( "Some files exist only in the storage. If serving from the storage is turned off, they will not be shown on the site.\n\nTurn it off anyway?", 'simple-storage' ),

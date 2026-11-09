@@ -335,6 +335,8 @@ final class Simple_Storage_Index {
 	 * - conflict: a different file at the same path on both sides;
 	 * - listed: local files the storage listing of the scan showed with the same size;
 	 * - listed_any: local files the storage listing of the scan showed, not taken for copies;
+	 * - listed_unchecked: of those, the ones of the same size whose contents nobody compared yet
+	 *   (a check that found another file records that as the row's error);
 	 * - local_uncopied: local files without a verified copy in the storage;
 	 * - remote_only: files that exist only in the storage.
 	 *
@@ -348,6 +350,7 @@ final class Simple_Storage_Index {
 			'listed'         => array( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size = size', array( $scan ) ),
 			// A copy deleted since the scan has no remote size any more.
 			'listed_any'     => array( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size IS NOT NULL', array( $scan ) ),
+			'listed_unchecked' => array( 'local = 1 AND remote = 0 AND conflict = 0 AND remote_scan = %d AND remote_size = size AND error IS NULL', array( $scan ) ),
 			'local_uncopied' => array( 'local = 1 AND conflict = 0 AND (remote = 0 OR verified = 0)', array() ),
 			'remote_only'    => array( 'remote = 1 AND local = 0 AND conflict = 0', array() ),
 		);
