@@ -124,6 +124,16 @@
 	gap: 4px 8px;
 }
 
+.simple-storage .ss-stats .ss-stats-sub th {
+	font-weight: 400;
+	padding-left: 24px;
+}
+
+.simple-storage .ss-stats tr[hidden],
+.simple-storage p[hidden] {
+	display: none;
+}
+
 /* display: flex above would show the checks while serving is off. */
 .simple-storage .ss-checks[hidden] {
 	display: none;

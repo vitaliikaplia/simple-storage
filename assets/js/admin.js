@@ -84,9 +84,16 @@
 
 	function renderStats() {
 		const stats = state.stats;
-		[ 'total', 'local_only', 'both', 'remote_only' ].forEach( ( key ) => {
+		[ 'total', 'local_only', 'listed', 'both', 'remote_only' ].forEach( ( key ) => {
 			setText( 'stat-' + key + '-files', stats[ key ].files );
 			setText( 'stat-' + key + '-bytes', stats[ key ].bytes );
+		} );
+		// Local files the storage holds under the same name, not proven to be copies yet.
+		[ 'stat-listed-row', 'stat-listed-note' ].forEach( ( name ) => {
+			const node = $( name );
+			if ( node ) {
+				node.hidden = ! stats.raw.listed;
+			}
 		} );
 		setText( 'indexed', stats.indexed || t.never );
 		setText( 'stat-errors', stats.errors );

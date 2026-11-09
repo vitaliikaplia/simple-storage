@@ -29,7 +29,7 @@ final class Simple_Storage_Jobs {
 		'index'        => array( 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup' ),
 		'push'         => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'upload', 'verify', 'enable_delivery', 'check_delivery', 'delete_local', 'finish_push' ),
 		'pull'         => array( 'check', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'download', 'delete_remote', 'prune_remote', 'finish_pull' ),
-		'adopt'        => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
+		'adopt'        => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'adopt_compare', 'enable_delivery', 'check_delivery', 'finish_adopt' ),
 		// Step by step: copy (never deletes), switch (never copies), delete (only a complete move).
 		'copy_remote'  => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'verify_listed', 'upload', 'verify', 'finish_copy_remote' ),
 		'copy_local'   => array( 'check', 'local_dirs', 'local_scan', 'local_cleanup', 'remote_dirs', 'remote_scan', 'remote_cleanup', 'reconcile', 'download', 'finish_copy_local' ),
@@ -322,6 +322,11 @@ final class Simple_Storage_Jobs {
 				/* translators: 1: phase name, 2: number of files. */
 				sprintf( __( '%1$s: %2$d files failed; see the error list.', 'simple-storage' ), self::phase_label( $phase ), (int) $progress['failed'] )
 			);
+		}
+
+		if ( 'remote_scan' === $phase && $this->job['dir_pos'] >= count( $this->job['dirs'] ) ) {
+			// A complete listing: the overview counts the local files it showed in the storage too.
+			Simple_Storage_Settings::update_state( array( 'last_remote_scan' => (int) $this->job['remote_scan'] ) );
 		}
 
 		++$this->job['phase'];

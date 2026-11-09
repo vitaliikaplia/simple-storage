@@ -36,6 +36,11 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 					<td data-ss="stat-local_only-files"></td>
 					<td data-ss="stat-local_only-bytes"></td>
 				</tr>
+				<tr class="ss-stats-sub" data-ss="stat-listed-row" hidden>
+					<th scope="row"><?php esc_html_e( 'of them, the storage has a file under the same name, not verified yet', 'simple-storage' ); ?></th>
+					<td data-ss="stat-listed-files"></td>
+					<td data-ss="stat-listed-bytes"></td>
+				</tr>
 				<tr>
 					<th scope="row"><span class="ss-dot ss-dot-both"></span><?php esc_html_e( 'In WordPress and in the storage', 'simple-storage' ); ?></th>
 					<td data-ss="stat-both-files"></td>
@@ -48,6 +53,7 @@ $simple_storage_settings_url = Simple_Storage_Admin::url( 'settings' );
 				</tr>
 			</tbody>
 		</table>
+		<p class="description" data-ss="stat-listed-note" hidden><?php esc_html_e( 'A file of the same name in the storage counts as the copy only once its contents are checked: "Copy everything to the storage" (it uploads nothing twice), "Switch to the storage" and "Delete the copies in WordPress" do that.', 'simple-storage' ); ?></p>
 		<p class="ss-meta">
 			<?php esc_html_e( 'Last indexed:', 'simple-storage' ); ?> <strong data-ss="indexed"></strong>
 			<span data-ss="errors-link" hidden> · <a href="#ss-errors"><?php esc_html_e( 'Errors:', 'simple-storage' ); ?> <span data-ss="stat-errors"></span></a></span>

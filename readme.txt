@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.4.0
+Stable tag: 0.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,10 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.4.1 =
+* "Switch to the storage" no longer reports an empty storage when the files were uploaded there by hand while their local copies are still in WordPress: such files are checked first (by their contents in strict mode) and then count as copies.
+* The overview shows how many files that are only in WordPress the storage already holds under the same name, not verified yet: indexing lists them, but only a check of the contents makes them copies.
 
 = 0.4.0 =
 * New: a "Step by step" card for moves done by hand or in stages, with three steps in each direction.

@@ -178,6 +178,8 @@ final class Simple_Storage_Admin {
 	public static function state(): array {
 		$settings = Simple_Storage_Settings::state();
 		$stats    = Simple_Storage_Index::stats();
+		// Local files the storage holds under the same name, not proven to be their copies yet.
+		$listed   = Simple_Storage_Index::report( 'listed_any', 0, $settings['last_remote_scan'] );
 		// Locales such as uk use "&nbsp;" as the thousands separator; the page sets text, not HTML.
 		$text     = static fn( string $value ): string => html_entity_decode( $value, ENT_QUOTES, 'UTF-8' );
 		$format   = static fn( array $item ): array => array(
@@ -202,6 +204,12 @@ final class Simple_Storage_Admin {
 				'local_only'  => $format( $stats['local_only'] ),
 				'both'        => $format( $stats['both'] ),
 				'remote_only' => $format( $stats['remote_only'] ),
+				'listed'      => $format(
+					array(
+						'files' => $listed['count'],
+						'bytes' => $listed['bytes'],
+					)
+				),
 				'errors'      => $text( number_format_i18n( (int) $stats['errors'] ) ),
 				'indexed'     => $settings['last_index'] ? wp_date( 'd.m.Y H:i', $settings['last_index'] ) : '',
 				'raw'         => array(
@@ -209,6 +217,7 @@ final class Simple_Storage_Admin {
 					'local_only'  => $stats['local_only']['files'],
 					'both'        => $stats['both']['files'],
 					'remote_only' => $stats['remote_only']['files'],
+					'listed'      => $listed['count'],
 				),
 			),
 			'configured'  => Simple_Storage_Settings::is_configured(),

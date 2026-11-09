@@ -22,6 +22,10 @@ final class Simple_Storage_CLI {
 		foreach ( array( 'total', 'local_only', 'both', 'remote_only' ) as $key ) {
 			WP_CLI::log( sprintf( '%-12s %8d files  %s', $key, $stats[ $key ]['files'], size_format( $stats[ $key ]['bytes'], 1 ) ?: '0 B' ) );
 		}
+		$listed = Simple_Storage_Index::report( 'listed_any', 0, $state['last_remote_scan'] );
+		if ( $listed['count'] > 0 ) {
+			WP_CLI::log( sprintf( '%-12s %8d files  %s  (local files the storage has under the same name; not verified as copies yet)', 'unverified', $listed['count'], size_format( $listed['bytes'], 1 ) ?: '0 B' ) );
+		}
 		WP_CLI::log( sprintf( 'errors       %8d', $stats['errors'] ) );
 		WP_CLI::log( 'serving from storage: ' . ( Simple_Storage_Delivery::active() ? 'on' : 'off' ) . ', mode: ' . $state['mode'] . ', auto offload: ' . ( Simple_Storage_Media::auto_enabled() ? 'on' : 'off' ) );
 

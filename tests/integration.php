@@ -2245,6 +2245,10 @@ try {
 	clearstatcache();
 	$ss_by_hand = filemtime( ss_remote( '2014/03/doc.pdf' ) );
 
+	ss_run_job( 'index' );
+	$ss_listed = Simple_Storage_Index::report( 'listed_any', 0, Simple_Storage_Settings::state()['last_remote_scan'] );
+	ss_check( 3 === $ss_listed['count'] && 0 === Simple_Storage_Index::stats()['both']['files'], 'indexing counts the local files the storage has under the same name, apart from verified copies', $ss_listed );
+
 	$ss_job = ss_run_job( 'clean_local' );
 	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && true === ( $ss_job['report']['blocked'] ?? null ), 'deleting the copies in WordPress before everything is copied deletes nothing', $ss_job['message'] ?? '' );
 	ss_check( 5 === ( $ss_job['report']['counts']['uncopied'] ?? null ) && in_array( '2014/04/d.gif', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ) && in_array( '2014/03/a.jpg', (array) ( $ss_job['report']['paths']['uncopied'] ?? array() ), true ), 'and names the files without a verified copy', $ss_job['report'] ?? array() );
@@ -2357,6 +2361,22 @@ try {
 	foreach ( $ss_step_ids as $ss_id ) {
 		wp_delete_attachment( $ss_id, true );
 	}
+
+	ss_section( 'Step by step: switching to the storage with the files still in WordPress' );
+	// Uploaded by hand while the local copies are still there (sizes as the metadata records them).
+	$ss_kept = $ss_add( '2013/07/kept.jpg', array( 'kept-60x60.jpg' ) );
+	ss_write( $ss_uploads . '/2013/07/kept.jpg', random_bytes( 900 ) );
+	ss_write( $ss_uploads . '/2013/07/kept-60x60.jpg', random_bytes( 300 ) );
+	wp_mkdir_p( dirname( ss_remote( '2013/07/kept.jpg' ) ) );
+	copy( $ss_uploads . '/2013/07/kept.jpg', ss_remote( '2013/07/kept.jpg' ) );
+	copy( $ss_uploads . '/2013/07/kept-60x60.jpg', ss_remote( '2013/07/kept-60x60.jpg' ) );
+	$ss_job    = ss_run_job( 'adopt' );
+	$ss_report = $ss_job['adopt'] ?? array();
+	ss_check( 'done' === ( $ss_job['status'] ?? '' ) && false === ( $ss_report['blocked'] ?? null ) && 2 === ( $ss_report['found'] ?? null ) && 0 === $ss_report['on_disk'], 'files uploaded by hand while still in WordPress are checked and taken as the copies', $ss_report );
+	ss_check( Simple_Storage_Delivery::active() && 'remote' === Simple_Storage_Settings::state()['mode'] && ss_copied( '2013/07/kept.jpg' ), 'and the site serves from the storage' );
+	Simple_Storage_Delivery::disable();
+	Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+	wp_delete_attachment( $ss_kept, true );
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
