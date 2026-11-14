@@ -34,6 +34,8 @@ final class Simple_Storage_Plugin {
 		Simple_Storage_Prune::init();
 		Simple_Storage_Timber::init();
 		Simple_Storage_Runner::init();
+		// Tools for an AI agent (Simple MCP, the WordPress MCP Adapter): WordPress 6.9+ only.
+		Simple_Storage_Abilities::init();
 
 		if ( is_admin() ) {
 			Simple_Storage_Admin::init();

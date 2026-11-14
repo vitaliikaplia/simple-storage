@@ -2,20 +2,21 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Simple Storage 0.6.0\n"
+"Project-Id-Version: Simple Storage 0.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/simple-storage\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-09T21:40:08+00:00\n"
+"POT-Creation-Date: 2026-11-14T20:27:09+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: simple-storage\n"
 
 #. Plugin Name of the plugin
 #: simple-storage.php
+#: includes/class-simple-storage-abilities.php:67
 #: includes/class-simple-storage-admin.php:30
 #: includes/class-simple-storage-admin.php:31
 #: includes/class-simple-storage-admin.php:161
@@ -35,6 +36,211 @@ msgstr ""
 #. Author URI of the plugin
 #: simple-storage.php
 msgid "https://kaplia.pro/"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:68
+msgid "The media files of the site in the Hosting Ukraine storage: where they are, serving from the storage, moving them there and back."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:109
+msgid "Runs as a job: this call does its first part, and simple-storage/job with the action \"continue\" does the rest."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:113
+msgid "Storage status"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:114
+msgid "Where the media files of this site are and how the site serves them: whether the storage is connected, whether visitors get the files from the storage or from WordPress (and why serving does not work, when it does not), where new uploads go, how many files are only in WordPress, in both places or only in the storage, the files with errors, the current or last job with its progress and report, recent log entries, and the suggested next step with the ability and arguments that do it. Read-only. Call it first, and again after every job."
+msgstr ""
+
+#. translators: %d: the largest number of log entries.
+#: includes/class-simple-storage-abilities.php:123
+#, php-format
+msgid "How many recent log entries to include, newest first (0 to %d)."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:132
+msgid "Where media files are"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:133
+msgid "Finds the files of one attachment (attachment_id: the original, every size, the WebP/AVIF copies) or one media file (path) and tells for each whether it is in WordPress, in the storage and verified there, and where visitors get it from, with its addresses. Use it when an image or a document does not show. Give attachment_id or path. Read-only; the storage side is what the last indexing saw."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:139
+msgid "ID of an attachment in the Media Library."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:145
+msgid "A media file: its path inside uploads (\"2024/05/photo.jpg\") or its full address on the site or in the storage."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:154
+msgid "Test the storage connection"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:155
+msgid "Tests the connection to the storage with a real round trip: logs in, uploads a small test file into a folder of its own, checks its size and its public address, and deletes it. Real media files are never touched. Returns every step and what failed."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:162
+msgid "Check serving from the storage"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:163
+msgid "While the site serves its files from the storage: refreshes the rules in uploads/.htaccess and the proxy settings, then requests a test file that exists only in the storage at its site address, once for every file extension in the storage. Returns the extensions that are served, those that fail and, when nothing is served, what the server does wrong and how to fix it. Files of a failing extension stay in WordPress. Nothing is copied or deleted."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:170
+#: includes/class-simple-storage-admin.php:651
+#: includes/views/overview.php:74
+msgid "Index media files"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:171
+msgid "Starts indexing: lists the media files in WordPress and in the storage and records where each one is, so that the status and the other jobs see the current state. Nothing is copied, deleted or switched."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:177
+msgid "Also compare the contents of the local files the storage already holds under the same names (uploaded by hand, for example), so that they count as copies. Slower: it downloads them."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:182
+msgid "Ask the storage about every recorded file its listing did not show, however many there are, and forget those it no longer has."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:191
+msgid "Copy media files"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:192
+msgid "Starts copying every file that is only on one side to the other: to \"storage\" from WordPress, or to \"wordpress\" from the storage. Every copy is verified; nothing is deleted, and the site keeps serving its files as before. After copying to \"wordpress\", new uploads stay in WordPress."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:198
+msgid "Where the files are copied: \"storage\" or \"wordpress\"."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:208
+msgid "Switch where the files are served from"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:209
+msgid "Changes where visitors get the media files from, so ask a person first: \"storage\" turns serving from the storage on, \"wordpress\" turns it off. The job first checks that every file of the Media Library is on that side; when one is missing, it changes nothing and lists them. accept_missing switches anyway, and those files stay broken until they are uploaded; files that exist only on the side being left are never accepted. Nothing is copied or deleted."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:215
+msgid "Where the site serves its files from: \"storage\" or \"wordpress\"."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:220
+msgid "Switch although files of the Media Library are missing. Only after a person agreed."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:230
+msgid "Delete the copies on one side"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:231
+msgid "Deletes files for good, so ask a person first: the copies in \"wordpress\" (frees the disk of the hosting; the site then serves the files from the storage) or in \"storage\" (the site then serves them from WordPress). It deletes only when every file has a verified copy on the other side; otherwise it deletes nothing and lists the files without one. Before deleting in WordPress, it turns serving from the storage on and checks it."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:237
+msgid "Where the copies are deleted: \"wordpress\" or \"storage\"."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:247
+msgid "Continue or stop the job"
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:248
+msgid "Works with the current job, which another Simple Storage ability started. \"continue\" runs it for up to about 20 seconds and returns its progress; call it again while the status is \"running\": nothing runs the job in between, and new uploads wait in WordPress until it ends. \"resume\" continues a paused job, or one stopped by an error once the cause is fixed. \"pause\" pauses it, and \"cancel\" stops it: files already processed stay where they are. Starts no new work."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:255
+msgid "continue (the default), resume, pause or cancel."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:350
+msgid "Give either attachment_id or path."
+msgstr ""
+
+#. translators: %d: attachment ID.
+#: includes/class-simple-storage-abilities.php:357
+#, php-format
+msgid "There is no attachment with ID %d."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:367
+msgid "The attachment has no file in the year and month folders of uploads. The plugin moves only those; the rest stays in WordPress."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:375
+msgid "This is not a file in the year and month folders of uploads (\"2024/05/photo.jpg\"), on the site or in the storage. The plugin moves only those files; the rest stays in WordPress."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-abilities.php:415
+#, php-format
+msgid "%d files are neither in WordPress nor in the storage, as far as the last indexing saw. Index again if they were uploaded since; otherwise they have to be uploaded."
+msgstr ""
+
+#. translators: %d: number of files.
+#: includes/class-simple-storage-abilities.php:417
+#, php-format
+msgid "%d files are not in WordPress, and the site does not serve files from the storage."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:437
+#: includes/class-simple-storage-admin.php:559
+#: includes/class-simple-storage-client.php:44
+#: includes/class-simple-storage-delivery.php:211
+#: includes/class-simple-storage-jobs.php:93
+msgid "The storage connection is not configured."
+msgstr ""
+
+#. translators: %s: list of file extensions.
+#: includes/class-simple-storage-abilities.php:462
+#: includes/class-simple-storage-admin.php:595
+#, php-format
+msgid "Serving does not work for these extensions, so their files stay local: %s. See the log for details."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:616
+msgid "The job is running. Call simple-storage/job with the action \"continue\" until its status is no longer \"running\": nothing runs it in between, and new uploads wait in WordPress until it ends."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:618
+msgid "The job is paused. Call simple-storage/job with the action \"resume\" to continue it, or \"cancel\"."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:620
+msgid "The job stopped on an error (see its message). Fix the cause, then call simple-storage/job with the action \"resume\", or \"cancel\" it."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:622
+msgid "The job was cancelled. Files that were already processed stay where they are now."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:627
+msgid "Nothing was switched, because files are missing (the report lists them). Ask a person whether to switch anyway; if they agree, call simple-storage/switch-serving again with accept_missing."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:630
+msgid "Nothing was deleted, because some files have no copy on the other side (the report lists them). Copy them first with simple-storage/copy."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:633
+msgid "Nothing was changed; the report says why."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:636
+msgid "Switched, but the site does not serve the files from the storage yet; the message says why. Once the server is fixed, call simple-storage/check-serving."
+msgstr ""
+
+#: includes/class-simple-storage-abilities.php:639
+msgid "The job is finished. The next step says what comes after it."
 msgstr ""
 
 #: includes/class-simple-storage-admin.php:50
@@ -259,19 +465,6 @@ msgstr ""
 msgid "Unknown action."
 msgstr ""
 
-#: includes/class-simple-storage-admin.php:559
-#: includes/class-simple-storage-client.php:44
-#: includes/class-simple-storage-delivery.php:211
-#: includes/class-simple-storage-jobs.php:93
-msgid "The storage connection is not configured."
-msgstr ""
-
-#. translators: %s: list of file extensions.
-#: includes/class-simple-storage-admin.php:595
-#, php-format
-msgid "Serving does not work for these extensions, so their files stay local: %s. See the log for details."
-msgstr ""
-
 #: includes/class-simple-storage-admin.php:604
 msgid "The check applies to the transparent proxy while serving from the storage is on."
 msgstr ""
@@ -362,11 +555,6 @@ msgstr ""
 
 #: includes/class-simple-storage-admin.php:649
 msgid "Open the settings"
-msgstr ""
-
-#: includes/class-simple-storage-admin.php:651
-#: includes/views/overview.php:74
-msgid "Index media files"
 msgstr ""
 
 #: includes/class-simple-storage-admin.php:652
@@ -728,7 +916,7 @@ msgid "Moves WordPress media files to the Hosting Ukraine storage and back, with
 msgstr ""
 
 #: includes/class-simple-storage-github-updater.php:103
-msgid "Version 0.6.0: switching to files uploaded to the storage by hand is no longer stopped when the server does not serve them yet: the switch is made, and the overview names what the server does wrong (a line of uploads/.htaccess it refuses, a rule that forbids PHP in the plugins folder, with the exception to add) and offers to check serving again. Missing files that were accepted are no longer shown as errors. Version 0.5.0: a clearer overview, with one suggested next step and the move in two views, step by step and in one go."
+msgid "Version 0.7.0: tools for an AI agent. On WordPress 6.9+ the plugin registers abilities of the WordPress Abilities API marked for MCP, so Simple MCP 2.7+ offers the agent the status, where the files of an attachment are, the connection and serving checks, and the jobs (index, copy, switch serving, delete copies), run in steps as on the admin page; switching serving and deleting copies are marked destructive. On a site where Simple MCP was updated from a version older than 2.7.1, turn on its row of plugin and theme tools in the role permissions first. Version 0.6.0: switching to files uploaded to the storage by hand is no longer stopped when the server does not serve them yet, and the overview names what the server does wrong."
 msgstr ""
 
 #: includes/class-simple-storage-index.php:242
@@ -1246,15 +1434,15 @@ msgstr ""
 msgid "Could not delete %s from the storage; delete it manually."
 msgstr ""
 
-#: includes/class-simple-storage-plugin.php:64
+#: includes/class-simple-storage-plugin.php:66
 msgid "Simple Storage supports single-site WordPress installations only and does nothing on this network."
 msgstr ""
 
-#: includes/class-simple-storage-plugin.php:77
+#: includes/class-simple-storage-plugin.php:79
 msgid "Simple Storage supports single-site WordPress installations only and was not activated."
 msgstr ""
 
-#: includes/class-simple-storage-plugin.php:78
+#: includes/class-simple-storage-plugin.php:80
 msgid "Plugin activation refused"
 msgstr ""
 

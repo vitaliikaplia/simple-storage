@@ -408,7 +408,7 @@ final class Simple_Storage_Admin {
 	 * @param array<string, mixed>|null $job
 	 * @return array<string, mixed>|null
 	 */
-	private static function job_view( ?array $job ): ?array {
+	public static function job_view( ?array $job ): ?array {
 		if ( null === $job ) {
 			return null;
 		}
@@ -622,7 +622,7 @@ final class Simple_Storage_Admin {
 	}
 
 	/** Seconds one AJAX step may work, leaving room under max_execution_time. */
-	private static function budget(): float {
+	public static function budget(): float {
 		$limit = (int) ini_get( 'max_execution_time' );
 
 		return $limit > 0 ? (float) max( 5, min( 20, $limit - 10 ) ) : 20.0;

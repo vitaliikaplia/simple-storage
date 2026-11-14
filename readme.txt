@@ -3,7 +3,7 @@ Contributors: vitaliikaplia
 Tags: storage, media, offload, hosting ukraine, uploads
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,6 +42,8 @@ The login, password and storage address can also be defined as the `SIMPLE_STORA
 
 WP-CLI: `wp simple-storage status`, `test`, `index`, `verify`, `push`, `pull`, `adopt`, `copy storage|wordpress`, `switch storage|wordpress`, `delete-copies wordpress|storage`, `resume`, `cancel`, `delivery on|off`.
 
+Tools for an AI agent: on WordPress 6.9+ the plugin registers abilities of the WordPress Abilities API marked for MCP, so Simple MCP 2.7+ (or the official WordPress MCP Adapter) offers them to an agent as the tools `simple-storage-status`, `-locate`, `-test-connection`, `-check-serving`, `-index`, `-copy`, `-switch-serving`, `-delete-copies` and `-job`. They run the same jobs as the admin page, in steps: the tool that starts a job does its first step, and `simple-storage-job` continues it. Switching serving and deleting copies are marked destructive, so the agent asks first. The person behind the MCP key needs `manage_options` (`upload_files` is enough to look up where the files of an attachment are). On a site where Simple MCP was updated from a version older than 2.7.1, the agent sees these tools only after an administrator turns on the row "Інструменти плагінів і теми" (plugin and theme tools) in Settings > Simple MCP > "Права ролей" (role permissions).
+
 For themes and plugins that work with media files themselves: `simple_storage_ensure_local( $attachment_id_or_path_or_url )` brings a file back from the storage, `simple_storage_file_exists( $path_or_url )` replaces `file_exists()` and knows files in the storage, `simple_storage_queue_offload( $path )` sends a file the code has just written to the storage at the end of the request, `simple_storage_timber_resize()` is `Timber\ImageHelper::resize()` for direct PHP calls, and the `simple_storage_attachment_files` filter adds files a theme keeps for an attachment outside its metadata.
 
 == Frequently Asked Questions ==
@@ -63,6 +65,11 @@ Before any local file is deleted, the transfer puts a probe file into the storag
 Deactivation keeps serving: the `.htaccess` rules and the proxy configuration stay in place. Deleting the plugin never deletes files in the storage; while some files exist only there, the rules are kept and turned into a redirect to the storage.
 
 == Changelog ==
+
+= 0.7.0 =
+* Tools for an AI agent. On WordPress 6.9+ the plugin registers nine abilities of the WordPress Abilities API, marked for MCP: the status (where the files are, how the site serves them, the current job, the suggested next step with the ability and arguments that do it), where the files of an attachment or one file are, the connection test, the serving check, and the jobs: index (also checking copies uploaded by hand), copy to one side, switch serving, delete the copies on one side, and continue, resume, pause or cancel the job. Simple MCP 2.7+ and the WordPress MCP Adapter show them as tools; without them nothing changes.
+* The jobs run in steps of up to 20 seconds, as on the admin page; switching serving and deleting copies are marked destructive, and their descriptions say the consequences first. Rights: manage_options, like the admin page; upload_files to look up files.
+* On sites where Simple MCP was updated from a version older than 2.7.1, turn on its row "Інструменти плагінів і теми" (plugin and theme tools) in Settings > Simple MCP > "Права ролей" first.
 
 = 0.6.0 =
 * "Switch to the storage" for files uploaded there by hand is no longer stopped when the server does not serve them yet. It deletes nothing, so a failed check protects nothing: the switch is made, new uploads stay in WordPress until serving works, and the overview puts the problem first, with a "Check serving" button.

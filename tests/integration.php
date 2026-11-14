@@ -2504,8 +2504,223 @@ try {
 	wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
 	wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
 	wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+
+	ss_section( 'Tools for an AI agent (WordPress abilities)' );
+	if ( ! function_exists( 'wp_get_ability' ) ) {
+		ss_check( false, 'the Abilities API is there (WordPress 6.9+)', get_bloginfo( 'version' ) );
+	} else {
+		$ss_wrong = array();
+		$ss_note_wrong = static function ( $function, $message ) use ( &$ss_wrong ): void {
+			$ss_wrong[] = $function . ': ' . $message;
+		};
+		add_action( 'doing_it_wrong_run', $ss_note_wrong, 10, 2 );
+		ss_check( 0 === did_action( 'wp_abilities_api_init' ), 'the registry starts after the plugin added its hooks, as on a site' );
+		Simple_Storage_Abilities::init();
+		$ss_defs      = Simple_Storage_Abilities::definitions();
+		$ss_abilities = array();
+		foreach ( array_keys( $ss_defs ) as $ss_name ) {
+			$ss_abilities[ $ss_name ] = wp_get_ability( $ss_name );
+		}
+		ss_check( 9 === count( array_filter( $ss_abilities, static fn( $ability ): bool => $ability instanceof WP_Ability ) ), 'every ability is registered', array_map( static fn( $ability ): bool => $ability instanceof WP_Ability, $ss_abilities ) );
+		ss_check( wp_has_ability_category( 'simple-storage' ) && array( 'simple-storage' ) === array_values( array_unique( array_map( static fn( $ability ): string => $ability instanceof WP_Ability ? $ability->get_category() : '', $ss_abilities ) ) ), 'in a category of their own' );
+
+		// What Simple MCP and the WordPress MCP Adapter read: the MCP flag, the hints, the schema.
+		$ss_shape = array();
+		foreach ( $ss_defs as $ss_name => $ss_def ) {
+			$ss_schema  = $ss_def['input_schema'];
+			$ss_props   = (array) $ss_schema['properties'];
+			$ss_ok      = true === ( $ss_def['meta']['mcp']['public'] ?? null )
+				&& 'object' === $ss_schema['type'] && false === $ss_schema['additionalProperties']
+				&& count( $ss_props ) === count( array_filter( $ss_props, static fn( array $prop ): bool => '' !== (string) ( $prop['description'] ?? '' ) ) )
+				&& mb_strlen( (string) $ss_def['description'] ) <= 2048 && preg_match( '#^simple-storage/[a-z-]+$#', $ss_name );
+			$ss_shape[ $ss_name ] = $ss_ok;
+		}
+		ss_check( ! in_array( false, $ss_shape, true ), 'each one is marked for MCP, takes an object with a description for every argument, and its description fits 2048 characters', $ss_shape );
+		$ss_flags = static fn( string $flag ): array => array_keys( array_filter( $ss_defs, static fn( array $def ): bool => true === $def['meta']['annotations'][ $flag ] ) );
+		ss_check( array( 'simple-storage/status', 'simple-storage/locate' ) === $ss_flags( 'readonly' ), 'only the status and the lookup are read-only', $ss_flags( 'readonly' ) );
+		ss_check( array( 'simple-storage/switch-serving', 'simple-storage/delete-copies' ) === $ss_flags( 'destructive' ), 'switching serving and deleting copies are marked destructive', $ss_flags( 'destructive' ) );
+		ss_check( str_contains( $ss_defs['simple-storage/switch-serving']['description'], 'so ask a person first' ) && str_starts_with( $ss_defs['simple-storage/delete-copies']['description'], 'Deletes files for good, so ask a person first' ), 'and their descriptions say the consequences first' );
+
+		$ss_mcp_dir = (string) getenv( 'SIMPLE_MCP_DIR' );
+		if ( '' !== $ss_mcp_dir && is_file( $ss_mcp_dir . '/includes/tools/class-simple-mcp-tools-abilities.php' ) ) {
+			require_once $ss_mcp_dir . '/includes/tools/class-simple-mcp-tools-abilities.php';
+			$ss_tools = array();
+			foreach ( $ss_abilities as $ss_name => $ss_ability ) {
+				if ( ! $ss_ability instanceof WP_Ability ) {
+					continue;
+				}
+				$ss_meta = (array) $ss_ability->get_meta();
+				$ss_in   = Simple_MCP_Tools_Abilities::input_shape( (array) Simple_MCP_Tools_Abilities::normalize_schema( (array) $ss_ability->get_input_schema() ) );
+				$ss_tools[ Simple_MCP_Tools_Abilities::tool_name( $ss_name ) ] = Simple_MCP_Tools_Abilities::exposed_meta( $ss_meta ) && false === $ss_in[1]
+					&& Simple_MCP_Tools_Abilities::annotations( $ss_meta )['destructiveHint'] === $ss_defs[ $ss_name ]['meta']['annotations']['destructive'];
+			}
+			ss_check( array( 'simple-storage-status', 'simple-storage-locate', 'simple-storage-test-connection', 'simple-storage-check-serving', 'simple-storage-index', 'simple-storage-copy', 'simple-storage-switch-serving', 'simple-storage-delete-copies', 'simple-storage-job' ) === array_keys( $ss_tools ) && ! in_array( false, $ss_tools, true ), 'Simple MCP shows them as tools simple-storage-*, unwrapped, with the same hints', $ss_tools );
+		} else {
+			WP_CLI::log( '  skip  the Simple MCP mapping (set SIMPLE_MCP_DIR to a checkout of simple-mcp)' );
+		}
+
+		// The next step of the overview names the ability that does it, with arguments it accepts.
+		$ss_next_ok = array();
+		foreach ( $ss_cases as $ss_case ) {
+			$ss_step   = Simple_Storage_Abilities::next_step( array_merge( $ss_base, $ss_case[0] ) );
+			$ss_action = $ss_case[1];
+			if ( 'none' === $ss_action ) {
+				$ss_next_ok[ $ss_case[2] ] = null === $ss_step;
+			} elseif ( 'settings' === $ss_action ) {
+				$ss_next_ok[ $ss_case[2] ] = ! isset( $ss_step['ability'] ) && str_contains( (string) ( $ss_step['settings_page'] ?? '' ), 'tab=settings' );
+			} elseif ( '' === $ss_action ) {
+				$ss_next_ok[ $ss_case[2] ] = ! isset( $ss_step['ability'] ) && 'success' === $ss_step['tone'];
+			} else {
+				$ss_ability = wp_get_ability( (string) ( $ss_step['ability'] ?? '' ) );
+				$ss_next_ok[ $ss_case[2] ] = $ss_ability instanceof WP_Ability && true === $ss_ability->validate_input( (array) $ss_step['arguments'] ) && '' !== $ss_step['text'];
+			}
+		}
+		ss_check( ! in_array( false, $ss_next_ok, true ), 'every next step names an ability and arguments it accepts', $ss_next_ok );
+		$ss_step = Simple_Storage_Abilities::next_step( array_merge( $ss_base, array( 'unverified' => 3 ) ) );
+		ss_check( 'simple-storage/index' === $ss_step['ability'] && array( 'check_copies' => true ) === (array) $ss_step['arguments'], 'checking files of the same name is indexing with check_copies', $ss_step );
+		$ss_step = Simple_Storage_Abilities::next_step( array_merge( $ss_base, array( 'both' => 4, 'delivery' => true, 'mode' => 'remote' ) ) );
+		ss_check( 'simple-storage/delete-copies' === $ss_step['ability'] && array( 'in' => 'wordpress' ) === (array) $ss_step['arguments'], 'deleting the copies in WordPress is delete-copies in wordpress', $ss_step );
+		ss_check( '{}' === wp_json_encode( Simple_Storage_Abilities::next_step( array_merge( $ss_base, array( 'indexed' => false ) ) )['arguments'] ), 'no arguments are an empty object, not a list' );
+
+		// A clean slate: no media on either side, an empty index never built, serving off.
+		Simple_Storage_Delivery::disable();
+		Simple_Storage_Settings::update_state( array( 'mode' => 'local', 'direction' => 'remote', 'last_index' => 0 ) );
+		delete_option( Simple_Storage_Jobs::OPTION );
+		foreach ( (array) glob( $ss_uploads . '/[0-9][0-9][0-9][0-9]', GLOB_ONLYDIR ) as $ss_dir ) {
+			exec( 'rm -rf ' . escapeshellarg( (string) $ss_dir ) );
+		}
+		foreach ( array_diff( is_dir( ss_remote( '' ) ) ? (array) scandir( ss_remote( '' ) ) : array(), array( '.', '..' ) ) as $ss_dir ) {
+			exec( 'rm -rf ' . escapeshellarg( ss_remote( (string) $ss_dir ) ) );
+		}
+		$GLOBALS['wpdb']->query( 'TRUNCATE TABLE ' . Simple_Storage_Index::table() );
+		$ss_agent = $ss_add( '2016/02/agent.jpg', array( 'agent-60x60.jpg' ) );
+		ss_write( $ss_uploads . '/2016/02/agent.jpg', random_bytes( 900 ) );
+		ss_write( $ss_uploads . '/2016/02/agent-60x60.jpg', random_bytes( 300 ) );
+		$ss_agent_files = array( '2016/02/agent.jpg', '2016/02/agent-60x60.jpg' );
+
+		$ss_exec = static function ( string $name, $input = null ) {
+			$ability = wp_get_ability( $name );
+
+			return $ability instanceof WP_Ability ? $ability->execute( $input ) : new WP_Error( 'ss_it_not_registered', $name );
+		};
+		// A result to read from: an error becomes ['error' => …], so that a failing check cannot stop the run.
+		$ss_call = static function ( string $name, $input = null ) use ( $ss_exec ): array {
+			$result = $ss_exec( $name, $input );
+
+			return is_wp_error( $result ) ? array( 'error' => $result->get_error_code() . ': ' . $result->get_error_message() ) : (array) $result;
+		};
+		// Continue a job the way an agent does, until it is no longer running.
+		$ss_finish = static function ( array $result ) use ( $ss_call ): array {
+			for ( $i = 0; $i < 100 && 'running' === ( $result['job']['status'] ?? '' ); $i++ ) {
+				$result = $ss_call( 'simple-storage/job', array( 'action' => 'continue' ) );
+			}
+
+			return $result;
+		};
+		$ss_code = static fn( $result ): string => is_wp_error( $result ) ? $result->get_error_code() : 'no error';
+
+		// Who may call them: the person behind the MCP key needs the rights of the admin page.
+		wp_set_current_user( 0 );
+		ss_check( 'ability_invalid_permissions' === $ss_code( $ss_exec( 'simple-storage/status' ) ) && 'ability_invalid_permissions' === $ss_code( $ss_exec( 'simple-storage/locate', array( 'attachment_id' => $ss_agent ) ) ), 'a visitor may call none of them' );
+		$ss_editor = wp_insert_user(
+			array(
+				'user_login' => 'ss-it-editor-' . wp_generate_password( 6, false, false ),
+				'user_pass'  => wp_generate_password( 24 ),
+				'role'       => 'editor',
+			)
+		);
+		wp_set_current_user( (int) $ss_editor );
+		ss_check( 'ability_invalid_permissions' === $ss_code( $ss_exec( 'simple-storage/status' ) ) && 'ability_invalid_permissions' === $ss_code( $ss_exec( 'simple-storage/copy', array( 'to' => 'storage' ) ) ) && null === Simple_Storage_Jobs::current(), 'an editor may neither read the status nor start a job' );
+		ss_check( is_array( $ss_exec( 'simple-storage/locate', array( 'attachment_id' => $ss_agent ) ) ), 'but may look up where the files of an attachment are' );
+		wp_set_current_user( (int) ( $ss_admins[0] ?? 0 ) );
+
+		// Arguments are checked against the schema before anything runs.
+		ss_check( 'ability_invalid_input' === $ss_code( $ss_exec( 'simple-storage/copy', array( 'to' => 'moon' ) ) ) && 'ability_invalid_input' === $ss_code( $ss_exec( 'simple-storage/copy' ) ) && 'ability_invalid_input' === $ss_code( $ss_exec( 'simple-storage/status', array( 'log' => 99 ) ) ) && 'ability_invalid_input' === $ss_code( $ss_exec( 'simple-storage/index', array( 'everything' => true ) ) ) && null === Simple_Storage_Jobs::current(), 'a wrong, missing or unknown argument is refused and starts nothing' );
+
+		$ss_status = $ss_call( 'simple-storage/status' );
+		ss_check( is_array( $ss_status ) && true === $ss_status['configured'] && 'wordpress' === $ss_status['serving']['from'] && 'proxy' === $ss_status['serving']['mode'] && null === $ss_status['job'] && count( (array) ( $ss_status['log'] ?? array() ) ) <= 10 && 'simple-storage/index' === ( $ss_status['next_step']['ability'] ?? '' ), 'the status needs no arguments and suggests indexing first', is_array( $ss_status ) ? $ss_status['next_step'] : $ss_code( $ss_status ) );
+		ss_check( array() === ( $ss_call( 'simple-storage/status', array( 'log' => 0 ) )['log'] ?? null ) && 3 === count( (array) ( $ss_call( 'simple-storage/status', array( 'log' => 3 ) )['log'] ?? array() ) ), 'and as many log entries as asked for' );
+
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/index' ) );
+		$ss_status = $ss_call( 'simple-storage/status' );
+		ss_check( 'index' === ( $ss_result['job']['type'] ?? '' ) && 'done' === $ss_result['job']['status'] && 2 === $ss_status['files']['only_wordpress']['files'] && '' !== $ss_status['files']['indexed_at'], 'indexing runs as a job and the status counts the files', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		ss_check( 'simple-storage/copy' === ( $ss_result['next_step']['ability'] ?? '' ) && array( 'to' => 'storage' ) === (array) $ss_result['next_step']['arguments'], 'a finished job says the next step: copy to the storage', $ss_result['next_step'] ?? null );
+
+		// Job control: another job cannot start while one waits; pause, resume, cancel.
+		Simple_Storage_Jobs::start( 'index' );
+		ss_check( str_contains( Simple_Storage_Abilities::hint( Simple_Storage_Jobs::current(), null ), '"continue"' ), 'a running job tells the agent to continue it' );
+		ss_check( 'simple_storage_job_active' === $ss_code( $ss_exec( 'simple-storage/copy', array( 'to' => 'storage' ) ) ), 'no job starts while another one is unfinished' );
+		$ss_result = $ss_call( 'simple-storage/job', array( 'action' => 'pause' ) );
+		ss_check( 'paused' === ( $ss_result['job']['status'] ?? '' ) && str_contains( (string) ( $ss_result['job']['hint'] ?? '' ), '"resume"' ), 'pause pauses it, and the hint says how to go on', $ss_result );
+		ss_check( 'simple_storage_job_paused' === $ss_code( $ss_exec( 'simple-storage/job' ) ), 'continuing a paused job says to resume it' );
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/job', array( 'action' => 'resume' ) ) );
+		ss_check( 'done' === ( $ss_result['job']['status'] ?? '' ), 'resume runs it to the end', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		Simple_Storage_Jobs::start( 'index' );
+		$ss_result = $ss_call( 'simple-storage/job', array( 'action' => 'cancel' ) );
+		ss_check( 'cancelled' === ( $ss_result['job']['status'] ?? '' ) && str_contains( (string) ( $ss_result['job']['hint'] ?? '' ), 'cancelled' ), 'cancel stops it', $ss_result );
+		ss_check( 'simple_storage_job_none' === $ss_code( $ss_exec( 'simple-storage/job' ) ), 'and there is nothing to continue then' );
+
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/copy', array( 'to' => 'storage' ) ) );
+		ss_check( 'copy_remote' === ( $ss_result['job']['type'] ?? '' ) && 'done' === $ss_result['job']['status'] && ss_copied( '2016/02/agent.jpg' ) && ss_copied( '2016/02/agent-60x60.jpg' ) && ! Simple_Storage_Delivery::active(), 'copy to the storage copies and verifies, and switches nothing', $ss_result['job'] ?? $ss_code( $ss_result ) );
+
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/delete-copies', array( 'in' => 'wordpress' ) ) );
+		ss_check( 'clean_local' === ( $ss_result['job']['type'] ?? '' ) && 'done' === $ss_result['job']['status'] && ss_remote_only( '2016/02/agent.jpg' ) && ss_remote_only( '2016/02/agent-60x60.jpg' ) && Simple_Storage_Delivery::active(), 'deleting the copies in WordPress turns serving on and leaves the files in the storage only', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		$ss_status = $ss_call( 'simple-storage/status' );
+		ss_check( 'storage' === $ss_status['serving']['from'] && in_array( 'jpg', (array) ( $ss_status['serving']['verified_extensions'] ?? array() ), true ) && 'storage' === $ss_status['new_uploads'] && 2 === $ss_status['files']['only_storage']['files'] && 'success' === $ss_status['next_step']['tone'], 'the status follows: served from the storage, new uploads go there, nothing left to do', $ss_status );
+
+		$ss_found = $ss_call( 'simple-storage/locate', array( 'attachment_id' => $ss_agent ) );
+		$ss_files = array_column( (array) ( $ss_found['files'] ?? array() ), null, 'path' );
+		ss_check( $ss_agent_files === array_keys( $ss_files ) && ! in_array( false, array_map( static fn( array $file ): bool => ! $file['in_wordpress'] && $file['in_storage'] && $file['verified'] && 'storage' === $file['served_from'] && Simple_Storage_Paths::public_url( $file['path'] ) === $file['storage_url'] && $ss_baseurl . '/' . $file['path'] === $file['url'], $ss_files ), true ), 'the lookup lists every file of the attachment, in the storage, served from there, with both addresses', $ss_found );
+		$ss_same = array();
+		foreach ( array( '2016/02/agent.jpg', '/2016/02/agent.jpg', 'wp-content/uploads/2016/02/agent.jpg', $ss_baseurl . '/2016/02/agent.jpg?ver=2', Simple_Storage_Paths::public_url( '2016/02/agent.jpg' ) ) as $ss_way ) {
+			$ss_same[ $ss_way ] = $ss_call( 'simple-storage/locate', array( 'path' => $ss_way ) )['files'][0]['path'] ?? '';
+		}
+		ss_check( array( '2016/02/agent.jpg' ) === array_values( array_unique( $ss_same ) ), 'a file is found by its path, its site address or its storage address', $ss_same );
+		$ss_found = $ss_call( 'simple-storage/locate', array( 'path' => '2016/02/nothing.jpg' ) );
+		ss_check( 'nowhere' === ( $ss_found['files'][0]['served_from'] ?? '' ) && str_contains( (string) ( $ss_found['note'] ?? '' ), 'neither in WordPress nor in the storage' ), 'a file that is nowhere is said to be nowhere', $ss_found );
+		ss_check( 'simple_storage_locate_path' === $ss_code( $ss_exec( 'simple-storage/locate', array( 'path' => 'wp-config.php' ) ) ) && 'simple_storage_locate_input' === $ss_code( $ss_exec( 'simple-storage/locate' ) ) && 'simple_storage_locate_input' === $ss_code( $ss_exec( 'simple-storage/locate', array( 'attachment_id' => $ss_agent, 'path' => '2016/02/agent.jpg' ) ) ) && 'simple_storage_locate_attachment' === $ss_code( $ss_exec( 'simple-storage/locate', array( 'attachment_id' => PHP_INT_MAX ) ) ), 'a path outside the media folders, no or two targets, an unknown attachment are refused' );
+
+		$ss_result = $ss_call( 'simple-storage/check-serving' );
+		ss_check( true === ( $ss_result['works'] ?? null ) && in_array( 'jpg', (array) ( $ss_result['served'] ?? array() ), true ) && array() === $ss_result['failed'] && ! isset( $ss_result['problem'] ), 'checking serving says it works, for the extensions in the storage', $ss_result );
+		$ss_result = $ss_call( 'simple-storage/test-connection' );
+		ss_check( true === ( $ss_result['works'] ?? null ) && count( (array) ( $ss_result['steps'] ?? array() ) ) >= 3 && '' !== $ss_result['tested_at'], 'the connection test reports its steps', $ss_result );
+
+		// Back to WordPress: switching first is refused, then copy, switch and delete in the storage.
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/switch-serving', array( 'to' => 'wordpress' ) ) );
+		ss_check( 'switch_local' === ( $ss_result['job']['type'] ?? '' ) && true === ( $ss_result['job']['report']['blocked'] ?? null ) && false === $ss_result['job']['report']['canAccept'] && Simple_Storage_Delivery::active() && str_starts_with( (string) ( $ss_result['job']['hint'] ?? '' ), 'Nothing was changed' ), 'switching to WordPress with the files only in the storage changes nothing, and says so', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/copy', array( 'to' => 'wordpress' ) ) );
+		ss_check( 'copy_local' === ( $ss_result['job']['type'] ?? '' ) && 'done' === $ss_result['job']['status'] && ss_copied( '2016/02/agent.jpg' ) && 'local' === Simple_Storage_Settings::state()['mode'], 'copy to WordPress brings the files back and keeps new uploads there', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		$ss_found = $ss_call( 'simple-storage/locate', array( 'path' => '2016/02/agent.jpg' ) )['files'][0] ?? array();
+		ss_check( Simple_Storage_Delivery::active() && true === ( $ss_found['in_storage'] ?? null ) && true === $ss_found['in_wordpress'] && 'wordpress' === $ss_found['served_from'], 'a file in both places is served from WordPress, whatever the mode', $ss_found );
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/switch-serving', array( 'to' => 'wordpress' ) ) );
+		ss_check( 'done' === ( $ss_result['job']['status'] ?? '' ) && empty( $ss_result['job']['report']['blocked'] ) && ! Simple_Storage_Delivery::active(), 'then switching to WordPress turns serving from the storage off', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		$ss_result = $ss_finish( $ss_call( 'simple-storage/delete-copies', array( 'in' => 'storage' ) ) );
+		clearstatcache();
+		ss_check( 'clean_remote' === ( $ss_result['job']['type'] ?? '' ) && 'done' === $ss_result['job']['status'] && ! is_file( ss_remote( '2016/02/agent.jpg' ) ) && is_file( $ss_uploads . '/2016/02/agent.jpg' ), 'and deleting the copies in the storage leaves the files in WordPress only', $ss_result['job'] ?? $ss_code( $ss_result ) );
+		ss_check( 'simple_storage_delivery_off' === $ss_code( $ss_exec( 'simple-storage/check-serving' ) ), 'checking serving while it is off says so' );
+
+		ss_check( array() === $ss_wrong, 'no call made WordPress complain', $ss_wrong );
+		remove_action( 'doing_it_wrong_run', $ss_note_wrong, 10 );
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		wp_delete_user( (int) $ss_editor );
+		wp_set_current_user( 0 );
+		Simple_Storage_Settings::update_state( array( 'mode' => 'local' ) );
+		wp_delete_attachment( $ss_agent, true );
+		delete_option( Simple_Storage_Jobs::OPTION );
+		wp_unschedule_hook( Simple_Storage_Media::OFFLOAD_HOOK );
+		wp_unschedule_hook( Simple_Storage_Media::DELETE_HOOK );
+		wp_unschedule_hook( Simple_Storage_Prune::HOOK );
+	}
 } finally {
 	ss_section( 'Cleanup' );
+	// What the agent-tools section created, even if a check broke off the run.
+	if ( isset( $ss_agent ) && is_int( $ss_agent ) ) {
+		wp_delete_attachment( $ss_agent, true );
+	}
+	if ( isset( $ss_editor ) && is_int( $ss_editor ) ) {
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		wp_delete_user( $ss_editor );
+	}
 	Simple_Storage_Delivery::remove_config();
 	Simple_Storage_Index::drop();
 	foreach ( array( 'simple_storage_settings', 'simple_storage_state', 'simple_storage_job', 'simple_storage_lock', 'simple_storage_log', 'simple_storage_token', 'simple_storage_scan_seq', 'simple_storage_regenerating' ) as $ss_option ) {
